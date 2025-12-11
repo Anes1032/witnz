@@ -100,3 +100,16 @@ func TestSendHashChainBrokenAlert_Disabled(t *testing.T) {
 		t.Errorf("expected nil error when disabled, got: %v", err)
 	}
 }
+
+func TestSendSystemAlert_Success(t *testing.T) {
+	mock := &mockHTTPClient{statusCode: http.StatusOK}
+	m := NewManagerWithClient(true, "https://hooks.slack.com/test", mock)
+
+	err := m.SendSystemAlert("Replication Lost", "Connection failed", "danger")
+	if err != nil {
+		t.Errorf("expected nil error, got: %v", err)
+	}
+	if mock.lastReq == nil {
+		t.Fatal("expected request to be made")
+	}
+}

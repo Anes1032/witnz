@@ -105,6 +105,36 @@ func (m *Manager) SendHashChainBrokenAlert(tableName string, sequenceNum uint64,
 	return m.sendSlackMessage(msg)
 }
 
+func (m *Manager) SendSystemAlert(title, message, severity string) error {
+	if !m.enabled || m.slackWebhook == "" {
+		return nil
+	}
+
+	color := "danger"
+	if severity == "warning" {
+		color = "warning"
+	} else if severity == "good" {
+		color = "good"
+	}
+
+	msg := slackMessage{
+		Text: fmt.Sprintf("🚨 *SYSTEM ALERT: %s*", title),
+		Attachments: []slackAttachment{
+			{
+				Color: color,
+				Title: title,
+				Fields: []slackField{
+					{Title: "Message", Value: message, Short: false},
+				},
+				Footer: "Witnz System Monitor",
+				Ts:     time.Now().Unix(),
+			},
+		},
+	}
+
+	return m.sendSlackMessage(msg)
+}
+
 func (m *Manager) sendSlackMessage(msg slackMessage) error {
 	payload, err := json.Marshal(msg)
 	if err != nil {
