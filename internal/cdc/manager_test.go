@@ -1,6 +1,7 @@
 package cdc
 
 import (
+	"context"
 	"testing"
 
 	"github.com/jackc/pglogrepl"
@@ -80,5 +81,71 @@ func TestManagerLSN(t *testing.T) {
 	got := manager.GetLSN()
 	if got != lsn {
 		t.Errorf("Expected LSN %d, got %d", lsn, got)
+	}
+}
+
+func TestManagerStartWithoutInit(t *testing.T) {
+	manager := NewManager(&ReplicationConfig{})
+
+	ctx := context.Background()
+	err := manager.Start(ctx)
+	if err == nil {
+		t.Error("Start should fail without Initialize")
+	}
+}
+
+func TestManagerStopWhenNotRunning(t *testing.T) {
+	manager := NewManager(&ReplicationConfig{})
+
+	ctx := context.Background()
+	err := manager.Stop(ctx)
+	if err != nil {
+		t.Errorf("Stop should not fail when not running: %v", err)
+	}
+}
+
+func TestManagerHandleChangeWithMultipleHandlers(t *testing.T) {
+	manager := NewManager(&ReplicationConfig{})
+
+	handler1 := &mockHandler{events: make([]*ChangeEvent, 0)}
+	handler2 := &mockHandler{events: make([]*ChangeEvent, 0)}
+	handler3 := &mockHandler{events: make([]*ChangeEvent, 0)}
+
+	manager.AddHandler(handler1)
+	manager.AddHandler(handler2)
+	manager.AddHandler(handler3)
+
+	event := &ChangeEvent{
+		TableName: "multi_test",
+		Operation: OperationUpdate,
+	}
+
+	err := manager.HandleChange(event)
+	if err != nil {
+		t.Fatalf("HandleChange failed: %v", err)
+	}
+
+	if len(handler1.events) != 1 {
+		t.Error("handler1 should have 1 event")
+	}
+	if len(handler2.events) != 1 {
+		t.Error("handler2 should have 1 event")
+	}
+	if len(handler3.events) != 1 {
+		t.Error("handler3 should have 1 event")
+	}
+}
+
+func TestManagerHandleChangeWithNoHandlers(t *testing.T) {
+	manager := NewManager(&ReplicationConfig{})
+
+	event := &ChangeEvent{
+		TableName: "test",
+		Operation: OperationDelete,
+	}
+
+	err := manager.HandleChange(event)
+	if err != nil {
+		t.Errorf("HandleChange with no handlers should not error: %v", err)
 	}
 }

@@ -17,7 +17,7 @@ protected_tables:
     mode: append_only
   - name: permissions
     mode: state_integrity
-    verify_interval: 30s
+    verify_interval: 5s
 
 alerts:
   enabled: true

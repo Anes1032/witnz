@@ -73,13 +73,17 @@ func (h *HashChainHandler) HandleChange(event *cdc.ChangeEvent) error {
 
 func (h *HashChainHandler) handleAppendOnly(event *cdc.ChangeEvent) error {
 	if event.Operation == cdc.OperationUpdate || event.Operation == cdc.OperationDelete {
+		recordID := fmt.Sprintf("%v", event.PrimaryKey)
+		details := fmt.Sprintf("Unauthorized %s operation detected on protected table", event.Operation)
+
+		fmt.Printf("TAMPERING DETECTED: %s operation on append-only table %s (record: %s)\n",
+			event.Operation, event.TableName, recordID)
+
 		if h.alertManager != nil {
-			recordID := fmt.Sprintf("%v", event.PrimaryKey)
-			details := fmt.Sprintf("Unauthorized %s operation detected on protected table", event.Operation)
 			_ = h.alertManager.SendTamperAlert(event.TableName, string(event.Operation), recordID, details)
 		}
-		return fmt.Errorf("TAMPERING DETECTED: %s operation on append-only table %s",
-			event.Operation, event.TableName)
+
+		return nil
 	}
 
 	chain, ok := h.hashChains[event.TableName]
