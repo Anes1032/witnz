@@ -3,21 +3,25 @@ package cdc
 import (
 	"context"
 	"fmt"
+	"math"
 	"sync"
+	"time"
 
 	"github.com/jackc/pglogrepl"
 	"github.com/jackc/pgx/v5"
+	"github.com/witnz/witnz/internal/alert"
 )
 
 type Manager struct {
 	config     *ReplicationConfig
 	client     *ReplicationClient
-	handlers   []EventHandler
-	mu         sync.RWMutex
-	currentLSN pglogrepl.LSN
-	running    bool
-	stopCh     chan struct{}
-	wg         sync.WaitGroup
+	handlers     []EventHandler
+	mu           sync.RWMutex
+	currentLSN   pglogrepl.LSN
+	running      bool
+	stopCh       chan struct{}
+	wg           sync.WaitGroup
+	alertManager *alert.Manager
 }
 
 func NewManager(config *ReplicationConfig) *Manager {
@@ -32,6 +36,12 @@ func (m *Manager) AddHandler(handler EventHandler) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.handlers = append(m.handlers, handler)
+}
+
+func (m *Manager) SetAlertManager(am *alert.Manager) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.alertManager = am
 }
 
 func (m *Manager) Initialize(ctx context.Context) error {
@@ -93,6 +103,9 @@ func (m *Manager) Stop(ctx context.Context) error {
 func (m *Manager) receiveLoop(ctx context.Context) {
 	defer m.wg.Done()
 
+	errorCount := 0
+	const maxBackoff = 30 * time.Second
+
 	for {
 		select {
 		case <-m.stopCh:
@@ -102,6 +115,35 @@ func (m *Manager) receiveLoop(ctx context.Context) {
 		default:
 			if err := m.client.ReceiveMessage(ctx); err != nil {
 				fmt.Printf("Error receiving message: %v\n", err)
+				errorCount++
+
+				// Exponential backoff
+				backoff := time.Duration(math.Pow(2, float64(errorCount))) * time.Second
+				if backoff > maxBackoff {
+					backoff = maxBackoff
+				}
+
+				// Send alert if configured
+				m.mu.RLock()
+				if m.alertManager != nil {
+					_ = m.alertManager.SendSystemAlert(
+						"Replication Connection Lost",
+						fmt.Sprintf("Failed to receive replication message: %v. Retrying in %v...", err, backoff),
+						"danger",
+					)
+				}
+				m.mu.RUnlock()
+
+				select {
+				case <-time.After(backoff):
+				case <-m.stopCh:
+					return
+				case <-ctx.Done():
+					return
+				}
+			} else {
+				// Reset error count on success
+				errorCount = 0
 			}
 		}
 	}
