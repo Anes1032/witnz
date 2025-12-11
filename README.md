@@ -152,21 +152,22 @@ For master/configuration tables where current values must be correct.
 
 ### Installation
 
-#### Option 1: One-line Install (Recommended)
+#### Option 1: One-line Install (Coming Soon)
 
-```bash
-curl -sSL https://witnz.tech/install.sh | sh
-```
+> Note: One-line installer will be available once the domain is set up.
+> ```bash
+> # curl -sSL https://witnz.tech/install.sh | sh
+> ```
 
-#### Option 2: Manual Binary Install
+#### Option 2: Manual Binary Install (Recommended)
 
 ```bash
 # Linux (amd64)
-curl -sSL https://github.com/witnz/witnz/releases/download/v0.1.0/witnz-linux-amd64 -o /usr/local/bin/witnz
+curl -sSL https://github.com/Anes1032/witnz/releases/download/v0.1.0/witnz-linux-amd64 -o /usr/local/bin/witnz
 chmod +x /usr/local/bin/witnz
 
 # macOS (arm64)
-curl -sSL https://github.com/witnz/witnz/releases/download/v0.1.0/witnz-darwin-arm64 -o /usr/local/bin/witnz
+curl -sSL https://github.com/Anes1032/witnz/releases/download/v0.1.0/witnz-darwin-arm64 -o /usr/local/bin/witnz
 chmod +x /usr/local/bin/witnz
 
 witnz version
