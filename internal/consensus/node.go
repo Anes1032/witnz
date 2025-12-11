@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/hashicorp/raft"
-	raftboltdb "github.com/hashicorp/raft-boltdb"
 	"github.com/witnz/witnz/internal/storage"
 )
 
@@ -48,12 +47,12 @@ func (n *Node) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to create raft directory: %w", err)
 	}
 
-	logStore, err := raftboltdb.NewBoltStore(filepath.Join(raftDir, "raft-log.db"))
+	logStore, err := NewBoltStore(filepath.Join(raftDir, "raft-log.db"))
 	if err != nil {
 		return fmt.Errorf("failed to create log store: %w", err)
 	}
 
-	stableStore, err := raftboltdb.NewBoltStore(filepath.Join(raftDir, "raft-stable.db"))
+	stableStore, err := NewBoltStore(filepath.Join(raftDir, "raft-stable.db"))
 	if err != nil {
 		return fmt.Errorf("failed to create stable store: %w", err)
 	}
