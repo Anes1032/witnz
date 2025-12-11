@@ -1,0 +1,48 @@
+# Binaries
+witnz
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Output of go coverage tool
+*.out
+
+# Go workspace file
+go.work
+
+# Dependencies
+vendor/
+
+# Data directories
+data/
+*.db
+
+# Config (keep examples)
+witnz.yaml
+!config/witnz.yaml
+
+# Development notes (not for git)
+CLAUDE.md
+.claude/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker volumes
+postgres_data/
+node1_data/
+node2_data/
+node3_data/

@@ -1,0 +1,21 @@
+database:
+  host: ${POSTGRES_HOST:localhost}
+  port: ${POSTGRES_PORT:5432}
+  database: ${POSTGRES_DB:witnzdb}
+  user: ${POSTGRES_USER:witnz}
+  password: ${POSTGRES_PASSWORD:witnz_dev_password}
+
+node:
+  id: ${NODE_ID:node1}
+  bind_addr: 0.0.0.0:7000
+  grpc_addr: 0.0.0.0:8000
+  data_dir: /data
+  peers:
+    - node1:7000
+    - node2:7000
+    - node3:7000
+
+protected_tables: []
+
+alerts:
+  enabled: false

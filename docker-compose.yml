@@ -1,0 +1,110 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: witnz-postgres
+    environment:
+      POSTGRES_DB: witnzdb
+      POSTGRES_USER: witnz
+      POSTGRES_PASSWORD: witnz_dev_password
+    command:
+      - "postgres"
+      - "-c"
+      - "wal_level=logical"
+      - "-c"
+      - "max_replication_slots=10"
+      - "-c"
+      - "max_wal_senders=10"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - witnz-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U witnz -d witnzdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  node1:
+    build: .
+    container_name: witnz-node1
+    command: ["start", "--config", "/examples/witnz-test.yaml"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - NODE_ID=node1
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=witnzdb
+      - POSTGRES_USER=witnz
+      - POSTGRES_PASSWORD=witnz_dev_password
+      - DATA_DIR=/data
+    ports:
+      - "7001:7000"
+      - "8001:8000"
+    volumes:
+      - node1_data:/data
+      - ./config:/config
+      - ./examples:/examples
+    networks:
+      - witnz-network
+
+  node2:
+    build: .
+    container_name: witnz-node2
+    command: ["start", "--config", "/config/witnz.yaml"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - NODE_ID=node2
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=witnzdb
+      - POSTGRES_USER=witnz
+      - POSTGRES_PASSWORD=witnz_dev_password
+    ports:
+      - "7002:7000"
+      - "8002:8000"
+    volumes:
+      - node2_data:/data
+      - ./config:/config
+    networks:
+      - witnz-network
+
+  node3:
+    build: .
+    container_name: witnz-node3
+    command: ["start", "--config", "/config/witnz.yaml"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - NODE_ID=node3
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=witnzdb
+      - POSTGRES_USER=witnz
+      - POSTGRES_PASSWORD=witnz_dev_password
+    ports:
+      - "7003:7000"
+      - "8003:8000"
+    volumes:
+      - node3_data:/data
+      - ./config:/config
+    networks:
+      - witnz-network
+
+volumes:
+  postgres_data:
+  node1_data:
+  node2_data:
+  node3_data:
+
+networks:
+  witnz-network:
+    driver: bridge

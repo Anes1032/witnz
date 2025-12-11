@@ -1,0 +1,23 @@
+database:
+  host: ${POSTGRES_HOST:postgres}
+  port: ${POSTGRES_PORT:5432}
+  database: ${POSTGRES_DB:witnzdb}
+  user: ${POSTGRES_USER:witnz}
+  password: ${POSTGRES_PASSWORD:witnz_dev_password}
+
+node:
+  id: ${NODE_ID:test_node}
+  bind_addr: 0.0.0.0:7000
+  grpc_addr: 0.0.0.0:8000
+  data_dir: ${DATA_DIR:/data}
+  peers: []
+
+protected_tables:
+  - name: audit_log
+    mode: append_only
+  - name: permissions
+    mode: state_integrity
+    verify_interval: 30s
+
+alerts:
+  enabled: true
