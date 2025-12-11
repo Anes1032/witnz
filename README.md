@@ -343,7 +343,27 @@ protected_tables:
 alerts:
   enabled: true
   slack_webhook: https://hooks.slack.com/services/YOUR/WEBHOOK/URL
-  pagerduty_key: your-pagerduty-integration-key
+  pagerduty_key: your-pagerduty-integration-key  # Coming soon
+```
+
+**Slack Webhook Alerts** (✅ Implemented):
+
+When tampering is detected, Witnz sends a formatted Slack notification:
+
+| Alert Type | Trigger |
+|------------|---------|
+| **Tampering Alert** | UPDATE/DELETE on append-only table |
+| **Hash Chain Alert** | Hash integrity violation during verification |
+
+Example Slack message:
+```
+🚨 TAMPERING DETECTED
+
+Database Tampering Alert
+├── Table: audit_logs
+├── Operation: UPDATE
+├── Record ID: 123
+└── Details: Unauthorized UPDATE operation detected on protected table
 ```
 
 ## Development
@@ -505,9 +525,9 @@ docker-compose exec node1 ./witnz verify --config /config/witnz-test.yaml
   - Node status endpoints
   - Verification triggers
   - Configuration management
-- [ ] **Alert Integrations**
-  - Slack webhooks
-  - PagerDuty notifications
+- [x] **Alert Integrations**
+  - [x] Slack webhooks
+  - [ ] PagerDuty notifications
   - Custom webhook support
 
 #### Dashboard & Monitoring
