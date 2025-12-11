@@ -1,0 +1,25 @@
+database:
+  host: postgres
+  port: 5432
+  database: witnzdb
+  user: witnz
+  password: witnz_dev_password
+
+node:
+  id: node3
+  bind_addr: 0.0.0.0:7000
+  grpc_addr: 0.0.0.0:8000
+  data_dir: /data
+  peers:
+    - node1:7000
+    - node2:7000
+
+protected_tables:
+  - name: audit_log
+    mode: append_only
+  - name: permissions
+    mode: state_integrity
+    verify_interval: 5m
+
+alerts:
+  enabled: true

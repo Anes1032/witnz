@@ -450,49 +450,17 @@ witnz/
 ### Unit Tests
 
 ```bash
-# Run all unit tests
 make test
-
-# Run specific package tests
-go test ./internal/cdc -v
-go test ./internal/hash -v
-go test ./internal/storage -v
-go test ./internal/verify -v
-go test ./internal/consensus -v
 ```
 
 ### Integration Tests
 
 ```bash
-# Start test environment
-docker-compose up -d postgres
-sleep 5
+# Run append-only integration test
+make test-append-only
 
-# Initialize test database
-docker-compose exec postgres psql -U witnz -d witnzdb < test/integration/setup.sql
-
-# Start witnz node
-docker-compose up -d node1
-
-# Insert test data
-docker-compose exec postgres psql -U witnz -d witnzdb < test/integration/test_operations.sql
-
-# Verify hash chain
-docker-compose exec node1 ./witnz verify --config /config/witnz-test.yaml
-
-# Or use automated script
-./scripts/test-integration.sh
-```
-
-### Test Results
-
-```
-✅ internal/config      - PASS
-✅ internal/storage     - PASS
-✅ internal/hash        - PASS
-✅ internal/cdc         - PASS
-✅ internal/verify      - PASS
-✅ internal/consensus   - PASS
+# Run state-integrity integration test
+make test-state-integrity
 ```
 
 ## Current Status

@@ -168,6 +168,27 @@ var startCmd = &cobra.Command{
 			return fmt.Errorf("failed to start CDC manager: %w", err)
 		}
 
+		// Start State Integrity Verifier for state_integrity mode tables
+		dbConnStr := fmt.Sprintf("host=%s port=%d dbname=%s user=%s password=%s",
+			cfg.Database.Host, cfg.Database.Port, cfg.Database.Database,
+			cfg.Database.User, cfg.Database.Password)
+		stateVerifier := verify.NewStateIntegrityVerifier(store, dbConnStr)
+
+		for _, tableConfig := range cfg.ProtectedTables {
+			if tableConfig.Mode == "state_integrity" {
+				stateVerifier.AddTable(&verify.TableConfig{
+					Name:           tableConfig.Name,
+					Mode:           verify.StateIntegrityMode,
+					VerifyInterval: tableConfig.VerifyInterval,
+				})
+			}
+		}
+
+		if err := stateVerifier.Start(ctx); err != nil {
+			return fmt.Errorf("failed to start state integrity verifier: %w", err)
+		}
+		defer stateVerifier.Stop()
+
 		fmt.Println("Witnz node is running. Press Ctrl+C to stop.")
 
 		sigCh := make(chan os.Signal, 1)

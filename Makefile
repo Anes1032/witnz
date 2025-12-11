@@ -1,4 +1,4 @@
-.PHONY: build test clean release install docker-build docker-push
+.PHONY: build test clean release install docker-build docker-push test-append-only test-state-integrity
 
 VERSION ?= 0.1.0
 DOCKER_IMAGE ?= witnz/witnz
@@ -12,6 +12,12 @@ test:
 test-coverage:
 	go test ./internal/... -coverprofile=coverage.out
 	go tool cover -html=coverage.out -o coverage.html
+
+test-append-only:
+	./scripts/test-append-only.sh
+
+test-state-integrity:
+	./scripts/test-state-integrity.sh
 
 clean:
 	rm -f witnz
@@ -48,6 +54,8 @@ help:
 	@echo "  build          - Build single binary"
 	@echo "  test           - Run all tests"
 	@echo "  test-coverage  - Generate test coverage report"
+	@echo "  test-append-only - Run append-only mode integration test (requires Docker)"
+	@echo "  test-state-integrity - Run state integrity mode integration test (requires Docker)"
 	@echo "  clean          - Remove build artifacts"
 	@echo "  release        - Build for all platforms (VERSION=0.1.0)"
 	@echo "  install        - Install to GOPATH/bin"

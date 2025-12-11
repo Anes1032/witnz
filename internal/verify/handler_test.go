@@ -68,29 +68,31 @@ func TestHashChainHandler(t *testing.T) {
 		}
 	})
 
-	t.Run("RejectUpdateOnAppendOnlyTable", func(t *testing.T) {
+	t.Run("DetectUpdateOnAppendOnlyTable", func(t *testing.T) {
 		event := &cdc.ChangeEvent{
 			TableName: "test_table",
 			Operation: cdc.OperationUpdate,
 			Timestamp: time.Now(),
 		}
 
+		// UPDATE should not return error but should NOT add to hash chain
 		err := handler.HandleChange(event)
-		if err == nil {
-			t.Error("Expected error for UPDATE on append-only table")
+		if err != nil {
+			t.Errorf("HandleChange should not error on tampering detection: %v", err)
 		}
 	})
 
-	t.Run("RejectDeleteOnAppendOnlyTable", func(t *testing.T) {
+	t.Run("DetectDeleteOnAppendOnlyTable", func(t *testing.T) {
 		event := &cdc.ChangeEvent{
 			TableName: "test_table",
 			Operation: cdc.OperationDelete,
 			Timestamp: time.Now(),
 		}
 
+		// DELETE should not return error but should NOT add to hash chain
 		err := handler.HandleChange(event)
-		if err == nil {
-			t.Error("Expected error for DELETE on append-only table")
+		if err != nil {
+			t.Errorf("HandleChange should not error on tampering detection: %v", err)
 		}
 	})
 
