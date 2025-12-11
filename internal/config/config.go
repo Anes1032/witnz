@@ -9,10 +9,10 @@ import (
 )
 
 type Config struct {
-	Database       DatabaseConfig       `mapstructure:"database"`
-	Node           NodeConfig           `mapstructure:"node"`
+	Database        DatabaseConfig         `mapstructure:"database"`
+	Node            NodeConfig             `mapstructure:"node"`
 	ProtectedTables []ProtectedTableConfig `mapstructure:"protected_tables"`
-	Alerts         AlertsConfig         `mapstructure:"alerts"`
+	Alerts          AlertsConfig           `mapstructure:"alerts"`
 }
 
 type DatabaseConfig struct {
@@ -38,9 +38,9 @@ type ProtectedTableConfig struct {
 }
 
 type AlertsConfig struct {
-	Enabled       bool   `mapstructure:"enabled"`
-	SlackWebhook  string `mapstructure:"slack_webhook"`
-	PagerDutyKey  string `mapstructure:"pagerduty_key"`
+	Enabled      bool   `mapstructure:"enabled"`
+	SlackWebhook string `mapstructure:"slack_webhook"`
+	PagerDutyKey string `mapstructure:"pagerduty_key"`
 }
 
 func Load(configPath string) (*Config, error) {

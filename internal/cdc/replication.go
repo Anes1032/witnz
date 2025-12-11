@@ -16,12 +16,12 @@ const (
 )
 
 type ReplicationConfig struct {
-	Host           string
-	Port           int
-	Database       string
-	User           string
-	Password       string
-	SlotName       string
+	Host            string
+	Port            int
+	Database        string
+	User            string
+	Password        string
+	SlotName        string
 	PublicationName string
 }
 

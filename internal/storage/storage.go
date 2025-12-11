@@ -9,9 +9,9 @@ import (
 )
 
 var (
-	HashChainBucket = []byte("hashchain")
+	HashChainBucket  = []byte("hashchain")
 	MerkleRootBucket = []byte("merkleroot")
-	MetadataBucket = []byte("metadata")
+	MetadataBucket   = []byte("metadata")
 )
 
 type Storage struct {
@@ -29,10 +29,10 @@ type HashEntry struct {
 }
 
 type MerkleRootEntry struct {
-	TableName string    `json:"table_name"`
-	Root      string    `json:"root"`
-	Timestamp time.Time `json:"timestamp"`
-	RecordCount int     `json:"record_count"`
+	TableName   string    `json:"table_name"`
+	Root        string    `json:"root"`
+	Timestamp   time.Time `json:"timestamp"`
+	RecordCount int       `json:"record_count"`
 }
 
 func New(path string) (*Storage, error) {

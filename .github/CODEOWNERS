@@ -3,18 +3,18 @@
 # See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
 
 # Global owner - all files require approval from @moriwakisena
-*       @mAnes1032
+*       @Anes1032
 
 # Critical components - extra review required
-/internal/consensus/    @mAnes1032
-/internal/hash/         @mAnes1032
-/internal/verify/       @mAnes1032
+/internal/consensus/    @Anes1032
+/internal/hash/         @Anes1032
+/internal/verify/       @Anes1032
 
 # Build and release infrastructure
-/.github/workflows/     @mAnes1032
-/scripts/build-release.sh    @mAnes1032
-/Dockerfile             @mAnes1032
+/.github/workflows/     @Anes1032
+/scripts/build-release.sh    @Anes1032
+/Dockerfile             @Anes1032
 
 # Configuration and documentation
-/CONTRIBUTING.md        @mAnes1032
-/SECURITY.md           @mAnes1032
+doc/CONTRIBUTING.md        @Anes1032
+doc/SECURITY.md           @Anes1032
