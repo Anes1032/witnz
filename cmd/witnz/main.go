@@ -112,14 +112,14 @@ var startCmd = &cobra.Command{
 			}
 		}
 
-		if len(cfg.Node.Peers) > 0 {
+		if len(cfg.Node.PeerAddrs) > 0 || cfg.Node.Bootstrap {
 			fmt.Println("Starting Raft consensus...")
 			raftConfig := &consensus.NodeConfig{
 				NodeID:    cfg.Node.ID,
 				BindAddr:  cfg.Node.BindAddr,
 				DataDir:   cfg.Node.DataDir,
-				Bootstrap: len(cfg.Node.Peers) == 0,
-				Peers:     cfg.Node.Peers,
+				Bootstrap: cfg.Node.Bootstrap,
+				PeerAddrs: cfg.Node.PeerAddrs,
 			}
 
 			raftNode, err = consensus.NewNode(raftConfig, store)

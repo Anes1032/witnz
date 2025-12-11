@@ -7,19 +7,20 @@ database:
 
 node:
   id: node3
-  bind_addr: 0.0.0.0:7000
+  bind_addr: node3:7000
   grpc_addr: 0.0.0.0:8000
   data_dir: /data
-  peers:
-    - node1:7000
-    - node2:7000
+  bootstrap: false
+  peer_addrs:
+    node1: node1:7000
+    node2: node2:7000
 
 protected_tables:
   - name: audit_log
     mode: append_only
   - name: permissions
     mode: state_integrity
-    verify_interval: 5m
+    verify_interval: 10s
 
 alerts:
   enabled: true

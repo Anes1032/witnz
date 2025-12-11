@@ -77,14 +77,25 @@ func (v *StateIntegrityVerifier) VerifyTable(ctx context.Context, tableName stri
 	}
 	defer conn.Close(ctx)
 
-	merkleRoot, recordCount, err := v.calculateMerkleRoot(ctx, conn, tableName)
+	currentRoot, recordCount, err := v.calculateMerkleRoot(ctx, conn, tableName)
 	if err != nil {
 		return fmt.Errorf("failed to calculate merkle root: %w", err)
 	}
 
+	storedEntry, err := v.storage.GetMerkleRoot(tableName)
+	if err == nil && storedEntry != nil {
+		if storedEntry.Root != currentRoot {
+			fmt.Printf("TAMPERING DETECTED: Merkle root mismatch for table %s\n", tableName)
+			fmt.Printf("  Stored root:  %s (records=%d, timestamp=%s)\n",
+				storedEntry.Root[:16], storedEntry.RecordCount, storedEntry.Timestamp.Format(time.RFC3339))
+			fmt.Printf("  Current root: %s (records=%d)\n",
+				currentRoot[:16], recordCount)
+		}
+	}
+
 	entry := &storage.MerkleRootEntry{
 		TableName:   tableName,
-		Root:        merkleRoot,
+		Root:        currentRoot,
 		Timestamp:   time.Now(),
 		RecordCount: recordCount,
 	}
@@ -94,7 +105,7 @@ func (v *StateIntegrityVerifier) VerifyTable(ctx context.Context, tableName stri
 	}
 
 	fmt.Printf("State integrity check for %s: root=%s, records=%d\n",
-		tableName, merkleRoot[:16], recordCount)
+		tableName, currentRoot[:16], recordCount)
 
 	return nil
 }
