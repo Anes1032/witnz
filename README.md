@@ -168,7 +168,7 @@ When all Witnz nodes connect to the same PostgreSQL instance (e.g., RDS/Aurora),
 - Network connectivity between witnz nodes (VPN/private network)
 - Linux/macOS server (amd64 or arm64)
 
-### Installation
+### Installation (For one node)
 
 #### Option 1: One-line Install (Coming Soon)
 
@@ -220,7 +220,7 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO witnz;
 
 #### 2. Create Configuration File
 
-Create `witnz-node1.yaml` (bootstrap node):
+Create `witnz.yaml` (bootstrap node):
 
 ```yaml
 database:
@@ -231,47 +231,12 @@ database:
   password: ${WITNZ_DB_PASSWORD}   # Use env var for security
 
 node:
-  id: node1
-  bind_addr: {node1-hostname}:7000 # Use hostname, not 0.0.0.0
+  id: node
+  bind_addr: {hostname}:7000 # Use hostname, not 0.0.0.0
   grpc_addr: 0.0.0.0:8000
   data_dir: /var/lib/witnz
-  bootstrap: true                  # Only node1 should be bootstrap
-  peer_addrs:
-    node2: {node2-hostname}:7000
-    node3: {node3-hostname}:7000
-
-protected_tables:
-  - name: audit_logs
-    mode: append_only
-
-  - name: user_permissions
-    mode: state_integrity
-    verify_interval: 5m
-
-alerts:
-  enabled: true
-  slack_webhook: ${SLACK_WEBHOOK_URL}
-```
-
-Create `witnz-node2.yaml` and `witnz-node3.yaml` (follower nodes):
-
-```yaml
-database:
-  host: your-rds-endpoint.amazonaws.com
-  port: 5432
-  database: production
-  user: witnz_user
-  password: ${WITNZ_DB_PASSWORD}
-
-node:
-  id: node2                        # Change to node3 for node3
-  bind_addr: {node2-hostname}:7000 # Change to {node3-hostname}:7000 for node3
-  grpc_addr: 0.0.0.0:8000
-  data_dir: /var/lib/witnz
-  bootstrap: false                 # Followers are NOT bootstrap
-  peer_addrs:                      # Change peer list accordingly
-    node1: {node1-hostname}
-    node3: {node3-hostname}
+  bootstrap: true
+  peer_addrs: []
 
 protected_tables:
   - name: audit_logs
