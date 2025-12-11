@@ -26,6 +26,21 @@ services:
       timeout: 5s
       retries: 5
 
+  # node:
+  #   build: .
+  #   container_name: witnz-node
+  #   command: ["start", "--config", "/config/witnz.yaml"]
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #   ports:
+  #     - "7000:7000"
+  #   volumes:
+  #     - node_data:/data
+  #     - ./config:/config
+  #   networks:
+  #     - witnz-network
+
   node1:
     build: .
     container_name: witnz-node1
@@ -73,6 +88,7 @@ services:
 
 volumes:
   postgres_data:
+  # node_data:
   node1_data:
   node2_data:
   node3_data:
