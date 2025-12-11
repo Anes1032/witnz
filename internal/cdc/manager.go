@@ -13,8 +13,8 @@ import (
 )
 
 type Manager struct {
-	config     *ReplicationConfig
-	client     *ReplicationClient
+	config       *ReplicationConfig
+	client       *ReplicationClient
 	handlers     []EventHandler
 	mu           sync.RWMutex
 	currentLSN   pglogrepl.LSN
