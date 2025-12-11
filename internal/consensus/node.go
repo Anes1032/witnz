@@ -15,11 +15,11 @@ import (
 )
 
 type NodeConfig struct {
-	NodeID      string
-	BindAddr    string
-	DataDir     string
-	Bootstrap   bool
-	Peers       []string
+	NodeID    string
+	BindAddr  string
+	DataDir   string
+	Bootstrap bool
+	Peers     []string
 }
 
 type Node struct {

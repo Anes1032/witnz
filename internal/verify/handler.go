@@ -12,7 +12,7 @@ import (
 type ProtectionMode string
 
 const (
-	AppendOnlyMode    ProtectionMode = "append_only"
+	AppendOnlyMode     ProtectionMode = "append_only"
 	StateIntegrityMode ProtectionMode = "state_integrity"
 )
 

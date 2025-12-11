@@ -1,0 +1,20 @@
+# Witnz Code Owners
+# These users are automatically requested for review when someone opens a PR
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Global owner - all files require approval from @moriwakisena
+*       @Anes1032
+
+# Critical components - extra review required
+/internal/consensus/    @Anes1032
+/internal/hash/         @Anes1032
+/internal/verify/       @Anes1032
+
+# Build and release infrastructure
+/.github/workflows/     @Anes1032
+/scripts/build-release.sh    @Anes1032
+/Dockerfile             @Anes1032
+
+# Configuration and documentation
+doc/CONTRIBUTING.md        @Anes1032
+doc/SECURITY.md           @Anes1032

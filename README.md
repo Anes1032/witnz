@@ -173,12 +173,6 @@ chmod +x /usr/local/bin/witnz
 witnz version
 ```
 
-#### Option 3: Docker
-
-```bash
-docker pull witnz/witnz:latest
-docker run witnz/witnz:latest version
-```
 
 ### Setup Steps
 

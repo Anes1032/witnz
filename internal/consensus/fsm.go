@@ -90,8 +90,8 @@ func (f *FSM) Restore(rc io.ReadCloser) error {
 	decoder := json.NewDecoder(rc)
 
 	var snapshot struct {
-		HashEntries  []storage.HashEntry       `json:"hash_entries"`
-		MerkleRoots  []storage.MerkleRootEntry `json:"merkle_roots"`
+		HashEntries []storage.HashEntry       `json:"hash_entries"`
+		MerkleRoots []storage.MerkleRootEntry `json:"merkle_roots"`
 	}
 
 	if err := decoder.Decode(&snapshot); err != nil {
@@ -121,11 +121,11 @@ func (s *fsmSnapshot) Persist(sink raft.SnapshotSink) error {
 	defer sink.Close()
 
 	snapshot := struct {
-		HashEntries  []storage.HashEntry       `json:"hash_entries"`
-		MerkleRoots  []storage.MerkleRootEntry `json:"merkle_roots"`
+		HashEntries []storage.HashEntry       `json:"hash_entries"`
+		MerkleRoots []storage.MerkleRootEntry `json:"merkle_roots"`
 	}{
-		HashEntries:  make([]storage.HashEntry, 0),
-		MerkleRoots:  make([]storage.MerkleRootEntry, 0),
+		HashEntries: make([]storage.HashEntry, 0),
+		MerkleRoots: make([]storage.MerkleRootEntry, 0),
 	}
 
 	encoder := json.NewEncoder(sink)
