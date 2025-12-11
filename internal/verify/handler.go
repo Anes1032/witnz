@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/witnz/witnz/internal/alert"
 	"github.com/witnz/witnz/internal/cdc"
 	"github.com/witnz/witnz/internal/hash"
 	"github.com/witnz/witnz/internal/storage"
@@ -26,6 +27,7 @@ type HashChainHandler struct {
 	storage      *storage.Storage
 	hashChains   map[string]*hash.HashChain
 	tableConfigs map[string]*TableConfig
+	alertManager *alert.Manager
 }
 
 func NewHashChainHandler(store *storage.Storage) *HashChainHandler {
@@ -34,6 +36,10 @@ func NewHashChainHandler(store *storage.Storage) *HashChainHandler {
 		hashChains:   make(map[string]*hash.HashChain),
 		tableConfigs: make(map[string]*TableConfig),
 	}
+}
+
+func (h *HashChainHandler) SetAlertManager(am *alert.Manager) {
+	h.alertManager = am
 }
 
 func (h *HashChainHandler) AddTable(config *TableConfig) error {
@@ -67,6 +73,11 @@ func (h *HashChainHandler) HandleChange(event *cdc.ChangeEvent) error {
 
 func (h *HashChainHandler) handleAppendOnly(event *cdc.ChangeEvent) error {
 	if event.Operation == cdc.OperationUpdate || event.Operation == cdc.OperationDelete {
+		if h.alertManager != nil {
+			recordID := fmt.Sprintf("%v", event.PrimaryKey)
+			details := fmt.Sprintf("Unauthorized %s operation detected on protected table", event.Operation)
+			_ = h.alertManager.SendTamperAlert(event.TableName, string(event.Operation), recordID, details)
+		}
 		return fmt.Errorf("TAMPERING DETECTED: %s operation on append-only table %s",
 			event.Operation, event.TableName)
 	}
@@ -126,6 +137,9 @@ func (h *HashChainHandler) VerifyHashChain(tableName string) error {
 		}
 
 		if entry.PreviousHash != chain.GetPreviousHash() {
+			if h.alertManager != nil {
+				_ = h.alertManager.SendHashChainBrokenAlert(tableName, seqNum, chain.GetPreviousHash(), entry.PreviousHash)
+			}
 			return fmt.Errorf("hash chain broken at sequence %d: expected previous %s, got %s",
 				seqNum, chain.GetPreviousHash(), entry.PreviousHash)
 		}
