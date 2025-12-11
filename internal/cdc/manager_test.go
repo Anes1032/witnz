@@ -1,6 +1,7 @@
 package cdc
 
 import (
+	"context"
 	"testing"
 
 	"github.com/jackc/pglogrepl"
@@ -86,7 +87,7 @@ func TestManagerLSN(t *testing.T) {
 func TestManagerStartWithoutInit(t *testing.T) {
 	manager := NewManager(&ReplicationConfig{})
 
-	ctx := t.Context()
+	ctx := context.Background()
 	err := manager.Start(ctx)
 	if err == nil {
 		t.Error("Start should fail without Initialize")
@@ -96,7 +97,7 @@ func TestManagerStartWithoutInit(t *testing.T) {
 func TestManagerStopWhenNotRunning(t *testing.T) {
 	manager := NewManager(&ReplicationConfig{})
 
-	ctx := t.Context()
+	ctx := context.Background()
 	err := manager.Stop(ctx)
 	if err != nil {
 		t.Errorf("Stop should not fail when not running: %v", err)
