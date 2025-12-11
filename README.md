@@ -142,6 +142,24 @@ For master/configuration tables where current values must be correct.
 - Identifies tampered records via tree traversal
 - Consensus determines correct state
 
+### Current Limitations
+
+> [!IMPORTANT]
+> Understanding what each mode can and cannot detect.
+
+| Scenario | Append-only | State Integrity |
+|----------|:-----------:|:---------------:|
+| UPDATE/DELETE on protected table | ✅ Detected immediately | ⚠️ Detected at next verification |
+| Direct DB modification (shared DB) | ✅ Detected via CDC | ❌ Not detected* |
+| Witnz node local storage tampering | ✅ Hash chain verification | ✅ Merkle root comparison |
+| Hash chain manipulation | ✅ Chain integrity check | N/A |
+
+**\*Why State Integrity cannot detect shared DB tampering:**
+
+When all Witnz nodes connect to the same PostgreSQL instance (e.g., RDS/Aurora), a direct modification to the database will result in all nodes calculating the same Merkle Root from the tampered data. Since all nodes see identical data, there is no discrepancy to detect.
+
+**Planned solution** (Phase 3): External Anchoring to S3 Object Lock or blockchain will enable detection by comparing against an immutable external copy.
+
 ## Production Deployment
 
 ### Prerequisites
