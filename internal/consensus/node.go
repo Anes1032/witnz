@@ -10,16 +10,18 @@ import (
 	"time"
 
 	"github.com/hashicorp/raft"
-	raftboltdb "github.com/hashicorp/raft-boltdb"
 	"github.com/witnz/witnz/internal/storage"
 )
 
 type NodeConfig struct {
-	NodeID    string
-	BindAddr  string
-	DataDir   string
-	Bootstrap bool
-	Peers     []string
+	NodeID        string
+	BindAddr      string
+	DataDir       string
+	Bootstrap     bool
+	Peers         []string
+	PeerAddrs     map[string]string
+	JoinRetries   int
+	JoinRetryWait time.Duration
 }
 
 type Node struct {
@@ -45,12 +47,12 @@ func (n *Node) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to create raft directory: %w", err)
 	}
 
-	logStore, err := raftboltdb.NewBoltStore(filepath.Join(raftDir, "raft-log.db"))
+	logStore, err := NewBoltStore(filepath.Join(raftDir, "raft-log.db"))
 	if err != nil {
 		return fmt.Errorf("failed to create log store: %w", err)
 	}
 
-	stableStore, err := raftboltdb.NewBoltStore(filepath.Join(raftDir, "raft-stable.db"))
+	stableStore, err := NewBoltStore(filepath.Join(raftDir, "raft-stable.db"))
 	if err != nil {
 		return fmt.Errorf("failed to create stable store: %w", err)
 	}
@@ -80,22 +82,67 @@ func (n *Node) Start(ctx context.Context) error {
 	n.raft = ra
 
 	if n.config.Bootstrap {
-		configuration := raft.Configuration{
-			Servers: []raft.Server{
-				{
-					ID:      raftConfig.LocalID,
-					Address: transport.LocalAddr(),
-				},
+		servers := []raft.Server{
+			{
+				ID:      raftConfig.LocalID,
+				Address: transport.LocalAddr(),
 			},
+		}
+
+		for peerID, peerAddr := range n.config.PeerAddrs {
+			servers = append(servers, raft.Server{
+				ID:      raft.ServerID(peerID),
+				Address: raft.ServerAddress(peerAddr),
+			})
+		}
+
+		configuration := raft.Configuration{
+			Servers: servers,
 		}
 
 		future := ra.BootstrapCluster(configuration)
 		if err := future.Error(); err != nil {
 			return fmt.Errorf("failed to bootstrap cluster: %w", err)
 		}
+	} else if len(n.config.PeerAddrs) > 0 {
+		if err := n.waitForLeader(); err != nil {
+			return fmt.Errorf("failed to wait for leader: %w", err)
+		}
 	}
 
 	return nil
+}
+
+func (n *Node) waitForLeader() error {
+	retries := n.config.JoinRetries
+	if retries == 0 {
+		retries = 30
+	}
+	retryWait := n.config.JoinRetryWait
+	if retryWait == 0 {
+		retryWait = 1 * time.Second
+	}
+
+	for i := 0; i < retries; i++ {
+		leader := n.raft.Leader()
+		if leader != "" {
+			future := n.raft.GetConfiguration()
+			if err := future.Error(); err != nil {
+				time.Sleep(retryWait)
+				continue
+			}
+
+			config := future.Configuration()
+			for _, server := range config.Servers {
+				if server.ID == raft.ServerID(n.config.NodeID) {
+					return nil
+				}
+			}
+		}
+		time.Sleep(retryWait)
+	}
+
+	return fmt.Errorf("timeout waiting for leader after %d retries", retries)
 }
 
 func (n *Node) Stop() error {

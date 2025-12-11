@@ -181,11 +181,11 @@ When all Witnz nodes connect to the same PostgreSQL instance (e.g., RDS/Aurora),
 
 ```bash
 # Linux (amd64)
-curl -sSL https://github.com/Anes1032/witnz/releases/download/v0.1.0/witnz-linux-amd64 -o /usr/local/bin/witnz
+curl -sSL https://github.com/Anes1032/witnz/releases/download/v0.1.2/witnz-linux-amd64 -o /usr/local/bin/witnz
 chmod +x /usr/local/bin/witnz
 
 # macOS (arm64)
-curl -sSL https://github.com/Anes1032/witnz/releases/download/v0.1.0/witnz-darwin-arm64 -o /usr/local/bin/witnz
+curl -sSL https://github.com/Anes1032/witnz/releases/download/v0.1.2/witnz-darwin-arm64 -o /usr/local/bin/witnz
 chmod +x /usr/local/bin/witnz
 
 witnz version
@@ -211,9 +211,16 @@ SHOW wal_level;
 -- sudo systemctl restart postgresql
 ```
 
+**Required PostgreSQL User Permissions**:
+```sql
+CREATE USER witnz WITH REPLICATION;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO witnz;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO witnz;
+```
+
 #### 2. Create Configuration File
 
-Create `witnz.yaml`:
+Create `witnz-node1.yaml` (bootstrap node):
 
 ```yaml
 database:
@@ -221,16 +228,50 @@ database:
   port: 5432
   database: production
   user: witnz_user
-  password: ${WITNZ_DB_PASSWORD}  # Use env var for security
+  password: ${WITNZ_DB_PASSWORD}   # Use env var for security
 
 node:
-  id: witnz-node1
-  bind_addr: 0.0.0.0:7000
+  id: node1
+  bind_addr: {node1-hostname}:7000 # Use hostname, not 0.0.0.0
   grpc_addr: 0.0.0.0:8000
   data_dir: /var/lib/witnz
-  peers:
-    - witnz-node2:7000
-    - witnz-node3:7000
+  bootstrap: true                  # Only node1 should be bootstrap
+  peer_addrs:
+    node2: {node2-hostname}:7000
+    node3: {node3-hostname}:7000
+
+protected_tables:
+  - name: audit_logs
+    mode: append_only
+
+  - name: user_permissions
+    mode: state_integrity
+    verify_interval: 5m
+
+alerts:
+  enabled: true
+  slack_webhook: ${SLACK_WEBHOOK_URL}
+```
+
+Create `witnz-node2.yaml` and `witnz-node3.yaml` (follower nodes):
+
+```yaml
+database:
+  host: your-rds-endpoint.amazonaws.com
+  port: 5432
+  database: production
+  user: witnz_user
+  password: ${WITNZ_DB_PASSWORD}
+
+node:
+  id: node2                        # Change to node3 for node3
+  bind_addr: {node2-hostname}:7000 # Change to {node3-hostname}:7000 for node3
+  grpc_addr: 0.0.0.0:8000
+  data_dir: /var/lib/witnz
+  bootstrap: false                 # Followers are NOT bootstrap
+  peer_addrs:                      # Change peer list accordingly
+    node1: {node1-hostname}
+    node3: {node3-hostname}
 
 protected_tables:
   - name: audit_logs
@@ -268,20 +309,6 @@ sudo systemctl enable witnz
 witnz status --config /etc/witnz/witnz.yaml
 ```
 
-Expected output:
-```
-Node ID: witnz-node1
-Data Directory: /var/lib/witnz
-Raft Leader: witnz-node1:7000
-
-Protected Tables:
-  - audit_logs (mode: append_only)
-    Latest sequence: 12543
-    Latest hash: a3f5d8e9c2b1...
-  - user_permissions (mode: state_integrity)
-    Last verified: 2 minutes ago
-```
-
 ### Systemd Service Example
 
 Create `/etc/systemd/system/witnz.service`:
@@ -308,80 +335,6 @@ Enable and start:
 sudo systemctl daemon-reload
 sudo systemctl enable witnz
 sudo systemctl start witnz
-```
-
-## Configuration
-
-### Database Configuration
-
-```yaml
-database:
-  host: localhost              # PostgreSQL host
-  port: 5432                   # PostgreSQL port
-  database: mydb               # Database name
-  user: witnz                  # Replication user
-  password: secret             # Or use ${ENV_VAR}
-```
-
-**Required PostgreSQL User Permissions**:
-```sql
-CREATE USER witnz WITH REPLICATION;
-GRANT SELECT ON ALL TABLES IN SCHEMA public TO witnz;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO witnz;
-```
-
-### Node Configuration
-
-```yaml
-node:
-  id: node1                    # Unique node identifier
-  bind_addr: 0.0.0.0:7000      # Raft consensus address
-  grpc_addr: 0.0.0.0:8000      # gRPC API address (future)
-  data_dir: /data              # BoltDB storage directory
-  peers:                       # Other node addresses (empty for single-node)
-    - node2:7000
-    - node3:7000
-```
-
-### Protected Tables
-
-```yaml
-protected_tables:
-  - name: audit_log            # Table name
-    mode: append_only          # Protection mode
-
-  - name: permissions
-    mode: state_integrity
-    verify_interval: 5m        # How often to verify (default: 5m)
-```
-
-### Alerts
-
-```yaml
-alerts:
-  enabled: true
-  slack_webhook: https://hooks.slack.com/services/YOUR/WEBHOOK/URL
-  pagerduty_key: your-pagerduty-integration-key  # Coming soon
-```
-
-**Slack Webhook Alerts** (✅ Implemented):
-
-When tampering is detected, Witnz sends a formatted Slack notification:
-
-| Alert Type | Trigger |
-|------------|---------|
-| **Tampering Alert** | UPDATE/DELETE on append-only table |
-| **Hash Chain Alert** | Hash integrity violation during verification |
-
-Example Slack message:
-```
-🚨 TAMPERING DETECTED
-
-Database Tampering Alert
-├── Table: audit_logs
-├── Operation: UPDATE
-├── Record ID: 123
-└── Details: Unauthorized UPDATE operation detected on protected table
 ```
 
 ## Development
@@ -417,32 +370,6 @@ make build
 
 # Build for all platforms
 make release
-
-# Run tests
-make test
-
-# Generate coverage report
-make test-coverage
-```
-
-### Project Structure
-
-```
-witnz/
-├── cmd/witnz/              # CLI entry point
-├── internal/
-│   ├── cdc/                # PostgreSQL CDC integration
-│   ├── config/             # Configuration management
-│   ├── consensus/          # Raft consensus
-│   ├── hash/               # Hash algorithms
-│   ├── storage/            # BoltDB storage
-│   └── verify/             # Verification logic
-├── test/
-│   ├── integration/        # Integration test SQL scripts
-│   └── e2e/                # End-to-end tests
-├── examples/               # Sample configurations
-├── scripts/                # Build and deployment scripts
-└── doc/                    # Documentation
 ```
 
 ## Testing
@@ -465,63 +392,109 @@ make test-state-integrity
 
 ## Current Status
 
-### ✅ MVP Complete (v0.1.0)
+### ✅ MVP Complete (v0.1.2)
 
 #### Core Infrastructure
-- Configuration management (YAML + env vars)
-- BoltDB embedded storage
-- SHA256 hash algorithms (HashChain, MerkleTree)
-- Single binary deployment (~17MB)
+- ✅ Configuration management (YAML + env vars)
+- ✅ BoltDB embedded storage
+- ✅ SHA256 hash algorithms (HashChain, MerkleTree)
+- ✅ Single binary deployment (~17MB)
 
 #### Database Integration
-- PostgreSQL CDC via Logical Replication
-- Automatic publication/slot management
-- Real-time change event processing
+- ✅ PostgreSQL CDC via Logical Replication
+- ✅ Automatic publication/slot management
+- ✅ Real-time change event processing
 
 #### Protection Modes
-- **Append-only Mode**: Hash chain with tamper detection
-- **State Integrity Mode**: Periodic Merkle Root verification
+- ✅ **Append-only Mode**: Hash chain with immediate UPDATE/DELETE detection
+- ✅ **State Integrity Mode**: Periodic Merkle Root verification with tampering alerts
 
 #### Distributed Consensus
-- Raft consensus implementation
-- Multi-node hash chain replication
-- Leader election and automatic failover
-- Snapshot persistence and restore
-- Single-node and cluster modes
+- ✅ Raft consensus implementation (hashicorp/raft)
+- ✅ Multi-node hash chain replication
+- ✅ Leader election and automatic failover
+- ✅ Bootstrap-based cluster formation
+- ✅ Snapshot persistence and restore
+- ✅ 3-node cluster tested and verified
+
+#### Alert System
+- ✅ Slack webhook integration
+- ✅ Tampering detection alerts (append-only)
+- ✅ Merkle root mismatch alerts (state integrity)
+- ✅ Hash chain integrity alerts
+
+#### Testing
+- ✅ Unit tests (41.1% coverage)
+- ✅ Integration tests (append-only mode)
+- ✅ Integration tests (state integrity mode)
+- ✅ Multi-node cluster tests
 
 #### CLI & Operations
-- Complete CLI (init, start, status, verify)
-- Docker Compose for development
-- Graceful shutdown handling
+- ✅ Complete CLI (init, start, status, verify)
+- ✅ Docker Compose for development
+- ✅ Graceful shutdown handling
 
 #### Packaging & Distribution
-- Cross-platform builds (Linux/macOS, amd64/arm64)
-- One-line install script
-- Docker images with multi-arch support
-- GitHub Actions CI/CD
+- ✅ Cross-platform builds (Linux/macOS, amd64/arm64)
+- ✅ Docker images with multi-arch support
+- 🔄 One-line install script (in progress)
+- ✅ GitHub Actions CI/CD (in progress)
 
-### 📋 Phase 2 - Core Features
+### 📋 Phase 2 - Production Readiness & Operations
+
+#### Reliability & Fault Tolerance
+- [ ] **Node Failure Handling**
+  - [ ] Automatic leader re-election on node failure
+  - [ ] Follower recovery after network partition
+  - [ ] Split-brain prevention and detection
+  - [ ] Graceful degradation with quorum loss warning
+- [ ] **CDC Connection Resilience**
+  - [ ] Automatic reconnection on PostgreSQL disconnect
+  - [ ] Replication slot recovery after failure
+  - [ ] WAL position tracking and resume
+  - [ ] Dead letter queue for failed events
+- [ ] **Data Integrity & Recovery**
+  - [ ] Raft snapshot automatic creation and rotation
+  - [ ] Corrupted snapshot detection and fallback
+  - [ ] Manual node recovery procedure
+  - [ ] Cluster data consistency verification
 
 #### Observability & Operations
 - [ ] **Structured Logging** (slog integration)
-- [ ] **Error Handling & Retry** (CDC reconnection, Raft recovery)
+  - [ ] Configurable log levels (debug, info, warn, error)
+  - [ ] JSON format option for log aggregation
+  - [ ] Contextual logging (node_id, table_name, sequence)
+- [ ] **Health Check Endpoints**
+  - [ ] Liveness probe (process running)
+  - [ ] Readiness probe (Raft leader elected, DB connected)
+  - [ ] Cluster health status (quorum, replication lag)
+- [ ] **Metrics & Monitoring**
+  - [ ] Prometheus metrics endpoint
+  - [ ] CDC event processing rate
+  - [ ] Raft replication lag per follower
+  - [ ] Hash verification duration
+  - [ ] Alert trigger counts
 
 #### API & Integration
 - [ ] **HTTP REST API** (embedded in node)
-  - Node status endpoints
-  - Verification triggers
-  - Configuration management
-- [x] **Alert Integrations**
+  - [ ] `GET /health` - Node health status
+  - [ ] `GET /status` - Detailed node and cluster status
+  - [ ] `POST /verify/{table}` - Trigger manual verification
+  - [ ] `GET /tables` - List protected tables
+  - [ ] `GET /logs/{table}` - Query hash chain entries
+- [ ] **Alert Integrations**
   - [x] Slack webhooks
   - [ ] PagerDuty notifications
-  - Custom webhook support
+  - [ ] Custom webhook support
+  - [ ] Alert deduplication and throttling
 
 #### Dashboard & Monitoring
 - [ ] **Web Dashboard UI** (React, embedded)
-  - Real-time node status
-  - Hash chain visualization
-  - Verification history
-  - Alert management
+  - [ ] Real-time node status and topology
+  - [ ] Hash chain visualization
+  - [ ] Verification history and audit trail
+  - [ ] Alert management and acknowledgment
+  - [ ] Configuration management UI
 
 ### 📋 Phase 3 - Enterprise Features
 

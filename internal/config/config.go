@@ -24,11 +24,13 @@ type DatabaseConfig struct {
 }
 
 type NodeConfig struct {
-	ID       string   `mapstructure:"id"`
-	BindAddr string   `mapstructure:"bind_addr"`
-	GRPCAddr string   `mapstructure:"grpc_addr"`
-	DataDir  string   `mapstructure:"data_dir"`
-	Peers    []string `mapstructure:"peers"`
+	ID        string            `mapstructure:"id"`
+	BindAddr  string            `mapstructure:"bind_addr"`
+	GRPCAddr  string            `mapstructure:"grpc_addr"`
+	DataDir   string            `mapstructure:"data_dir"`
+	Peers     []string          `mapstructure:"peers"`
+	Bootstrap bool              `mapstructure:"bootstrap"`
+	PeerAddrs map[string]string `mapstructure:"peer_addrs"`
 }
 
 type ProtectedTableConfig struct {
