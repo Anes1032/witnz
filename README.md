@@ -1,40 +1,29 @@
-# Witnz - PostgreSQL Tamper Detection System
+# Witnz - Lightweight PostgreSQL Tamper Detection
 
-A distributed database tampering detection system for PostgreSQL that provides lightweight, blockchain-inspired tamper detection capabilities.
+**A lightweight tamper detection tool for PostgreSQL using distributed consensus.**
 
-## Overview
+## What is Witnz?
 
-Witnz is designed to detect internal fraud by database administrators and tampering during direct attacks on databases (RDS, Aurora, Cloud SQL, Supabase). It provides multi-layered protection through real-time monitoring and periodic verification.
+Witnz is a sidecar monitoring tool that detects unauthorized modifications to PostgreSQL databases in real-time. It uses Raft consensus to maintain tamper-proof hash chains across multiple nodes.
 
-## Key Strengths
+## Key Features
 
-### 🪶 Lightweight Sidecar Architecture
-- **Single binary (~15MB)** - Deploy as a sidecar to your application servers
-- **No complex setup** - Works with existing PostgreSQL databases
-- **Zero schema changes** - No modifications to your database required
-- **Minimal overhead** - Negligible impact on application performance
+### Lightweight Deployment
+- Single binary (~15MB) - Deploy as a sidecar to your application servers
+- No schema changes - Works with existing PostgreSQL databases
+- Minimal overhead - Uses PostgreSQL Logical Replication for change detection
 
-### ⚡ Real-time Tamper Detection
-- **Instant detection** of unauthorized `UPDATE`/`DELETE` operations on append-only tables
-- **PostgreSQL Logical Replication** - Monitors all database changes in real-time
-- **Immediate alerts** - Get notified the moment tampering occurs
+### Real-time Monitoring
+- Instant detection of unauthorized `UPDATE`/`DELETE` operations on append-only tables
+- Periodic Merkle Root verification to catch offline tampering
+- Immediate Slack alerts when tampering is detected
 
-### 🛡️ Fault-Tolerant & Tamper-Proof
-- **Hash-chain structure** - Ensures log immutability with cryptographic guarantees
-- **Raft Consensus** - Provides high availability and fault tolerance
-- **Multi-node verification** - Prevents single point of compromise
-- **Automatic leader election** - Continues operating even when nodes fail
-
-### 🔍 Deep Verification with Merkle Root
-- **Fast single-query verification** - Fetches all records in one DB query and compares Merkle Root checkpoints (500x faster than per-record verification)
-- **Identifies specific tampered records** - Merkle Tree traversal pinpoints exactly what was modified
-- **Catches offline modifications** - Detects direct database attacks and manual tampering
-- **Phantom insert detection** - Identifies records added outside the monitoring system
-- **Scalable performance** - Verifies millions of records in seconds
+### Distributed Consensus
+- 3-node Raft cluster for fault tolerance
+- Automatic leader election and failover
+- Cryptographic hash chains prevent tampering
 
 ## How It Works
-
-### Architecture Overview
 
 ```mermaid
 graph TB
@@ -44,145 +33,43 @@ graph TB
         App3[App Server 3]
     end
 
-    subgraph "Witnz Nodes (Sidecar)"
-        Node1[Witnz Node 1<br/>Leader]
-        Node2[Witnz Node 2<br/>Follower]
-        Node3[Witnz Node 3<br/>Follower]
+    subgraph "Raft Nodes（Sidecar）"
+        Node1[Raft Node 1<br/>Leader]
+        Node2[Raft Node 2<br/>Follower]
+        Node3[Raft Node 3<br/>Follower]
     end
 
     subgraph "Storage"
         PG[(PostgreSQL<br/>RDS/Aurora)]
-        DB1[(BoltDB 1)]
-        DB2[(BoltDB 2)]
-        DB3[(BoltDB 3)]
     end
 
-    App1 -->|INSERT/UPDATE| PG
-    App2 -->|INSERT/UPDATE| PG
-    App3 -->|INSERT/UPDATE| PG
+    App1 & App2 & App3 -->|SQL| PG
 
-    PG -->|Logical Replication| Node1
-    PG -->|Logical Replication| Node2
-    PG -->|Logical Replication| Node3
+    PG -->|Logical Replication| Node1 & Node2 & Node3
 
     Node1 <-->|Raft Consensus| Node2
     Node2 <-->|Raft Consensus| Node3
     Node3 <-->|Raft Consensus| Node1
-
-    Node1 --> DB1
-    Node2 --> DB2
-    Node3 --> DB3
 ```
 
-### Multi-Layered Protection
+### Protection Layers
 
-Witnz provides **two layers** of tamper detection:
-
-#### Layer 1: Real-time CDC Monitoring (Immediate)
+**Layer 1: Real-time CDC Monitoring**
 - Monitors PostgreSQL Logical Replication stream
-- Detects `UPDATE`/`DELETE` operations **instantly**
+- Detects `UPDATE`/`DELETE` operations instantly
 - Triggers immediate alerts
-- Prevents tampering that goes through normal database operations
 
-#### Layer 2: Merkle Root Verification (Periodic)
-- Periodically calculates Merkle Root of all table records with single DB query
-- Compares with stored Merkle Root checkpoint (instant comparison)
-- If mismatch detected, pinpoints specific tampered records via Merkle Tree traversal
-- Detects tampering that bypasses Logical Replication:
-  - Direct database file modifications
-  - Manual SQL executed while nodes were offline
-  - Database restores from tampered backups
-  - Phantom inserts (records added without INSERT operations)
-- **Performance**: Verifies millions of records in seconds (500x faster than per-record verification)
-
-### Data Flow
-
-#### Write Flow
-
-```mermaid
-sequenceDiagram
-    participant App as Application
-    participant PG as PostgreSQL
-    participant CDC as Witnz CDC
-    participant Hash as Hash Chain
-    participant Raft as Raft Consensus
-    participant Storage as BoltDB
-
-    App->>PG: INSERT INTO audit_log
-    PG->>CDC: WAL Event (via Logical Replication)
-    CDC->>Hash: Calculate DataHash + ChainHash
-    Hash->>Raft: Propose Log Entry (if Leader)
-    Raft->>Storage: Commit Hash Entry
-    Note over Storage: Builds Merkle Tree checkpoint periodically
-```
-
-#### Real-time Tamper Detection
-
-```mermaid
-sequenceDiagram
-    participant Attacker as Attacker
-    participant PG as PostgreSQL
-    participant CDC as Witnz CDC
-    participant Alert as Alert System
-
-    Attacker->>PG: ❌ UPDATE audit_log SET ...
-    PG->>CDC: WAL Event (UPDATE detected)
-    CDC->>Alert: 🚨 TAMPERING DETECTED!
-    Note over Alert: Instant Slack/PagerDuty notification
-```
-
-#### Periodic Verification Flow (Merkle Root)
-
-```mermaid
-sequenceDiagram
-    participant Verifier as Merkle Verifier
-    participant Storage as BoltDB
-    participant PG as PostgreSQL
-
-    loop Every verify_interval
-        Verifier->>Storage: Get latest Merkle checkpoint
-        Verifier->>PG: SELECT * FROM table (single query)
-        PG->>Verifier: All current records
-        Verifier->>Verifier: Calculate current Merkle Root
-        alt Merkle Root matches checkpoint
-            Verifier->>Verifier: ✅ All records intact (instant comparison)
-            Verifier->>Storage: Create new checkpoint if needed
-        else Merkle Root mismatch
-            Verifier->>Verifier: 🔍 Traverse Merkle Tree to find tampered records
-            Verifier->>Verifier: ❌ Identify specific modified records
-        end
-    end
-```
-
-## Protection Capabilities
-
-### What Witnz Detects
-
-| Attack Scenario | Detection Method | Response Time |
-|----------------|------------------|---------------|
-| `UPDATE`/`DELETE` via SQL | Logical Replication | **Instant** |
-| Direct database file modification | Merkle Root verification | **Next verification cycle** |
-| Offline tampering (node down) | Merkle Root verification | **On next verification** |
-| Phantom inserts (bypass CDC) | Merkle Root verification | **Next verification cycle** |
-| Hash chain manipulation | Hash chain integrity check | **Instant** |
-| Record deletion | Merkle Root verification | **Next verification cycle** |
-
-### Use Cases
-
-**Audit & Compliance Tables** (Append-only)
-- Financial transaction logs
-- User activity audit trails
-- Contract and consent records
-- Change history logs
-- Healthcare access logs (HIPAA)
-- System event logs (SOC2, ISO27001)
+**Layer 2: Merkle Root Verification**
+- Periodically calculates Merkle Root of all table records
+- Compares with stored checkpoint
+- Detects offline tampering and phantom inserts
 
 ## Quick Start
 
 ### Prerequisites
 
 - PostgreSQL 10+ with Logical Replication enabled
-- Network connectivity between witnz nodes (VPN/private network recommended)
+- Network connectivity between witnz nodes
 - Linux/macOS server (amd64 or arm64)
 
 ### Installation
@@ -190,10 +77,6 @@ sequenceDiagram
 ```bash
 # Linux (amd64)
 curl -sSL https://github.com/Anes1032/witnz/releases/latest/download/witnz-linux-amd64 -o /usr/local/bin/witnz
-chmod +x /usr/local/bin/witnz
-
-# macOS (arm64)
-curl -sSL https://github.com/Anes1032/witnz/releases/latest/download/witnz-darwin-arm64 -o /usr/local/bin/witnz
 chmod +x /usr/local/bin/witnz
 
 # Verify installation
@@ -206,7 +89,7 @@ Create `witnz.yaml`:
 
 ```yaml
 database:
-  host: your-rds-endpoint.amazonaws.com
+  host: your-db-host.com
   port: 5432
   database: production
   user: witnz_user
@@ -214,20 +97,17 @@ database:
 
 node:
   id: node1
-  bind_addr: node1:7000        # Use hostname for Raft
+  bind_addr: node1:7000
   grpc_addr: 0.0.0.0:8000
   data_dir: /var/lib/witnz
-  bootstrap: true              # Only one node should bootstrap
+  bootstrap: true
   peer_addrs:
     node2: node2:7000
     node3: node3:7000
 
 protected_tables:
   - name: audit_logs
-    verify_interval: 30m       # Periodic Merkle Root verification
-
-  - name: financial_transactions
-    verify_interval: 10m
+    verify_interval: 30m
 
 alerts:
   enabled: true
@@ -236,43 +116,27 @@ alerts:
 
 ### PostgreSQL Setup
 
-Enable Logical Replication:
-
 ```sql
--- Check current setting
-SHOW wal_level;  -- Should be 'logical'
-
--- If not, update postgresql.conf:
+-- Enable Logical Replication
+-- Add to postgresql.conf:
 -- wal_level = logical
 -- max_replication_slots = 10
 -- max_wal_senders = 10
--- Then restart PostgreSQL
 
--- Create witnz user with required permissions
+-- Create witnz user
 CREATE USER witnz WITH REPLICATION PASSWORD 'secure_password';
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO witnz;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO witnz;
 ```
 
 ### Start Witnz
 
 ```bash
-# Initialize replication slot and publication
 witnz init --config witnz.yaml
-
-# Start the node
 witnz start --config witnz.yaml
-
-# Check status
 witnz status --config witnz.yaml
-
-# Manual verification trigger
-witnz verify --config witnz.yaml
 ```
 
-## Production Deployment
-
-### Multi-Node Setup
+## Multi-Node Setup
 
 Deploy at least **3 nodes** for fault tolerance:
 
@@ -290,141 +154,24 @@ node:
 **Node 2 & 3 (Followers):**
 ```yaml
 node:
-  id: node2              # Change to node3 for third node
+  id: node2
   bootstrap: false
-  bind_addr: node2:7000  # Change to node3:7000
+  bind_addr: node2:7000
   peer_addrs:
     node1: node1:7000
-    node3: node3:7000    # Adjust peers for each node
+    node3: node3:7000
 ```
 
-### Systemd Service
+## Use Cases
 
-Create `/etc/systemd/system/witnz.service`:
+**Audit & Compliance Tables** (Append-only)
+- Financial transaction logs
+- User activity audit trails
+- Contract and consent records
+- Healthcare access logs (HIPAA)
+- System event logs (SOC2, ISO27001)
 
-```ini
-[Unit]
-Description=Witnz PostgreSQL Tamper Detection
-After=network.target
-
-[Service]
-Type=simple
-User=witnz
-Group=witnz
-ExecStart=/usr/local/bin/witnz start --config /etc/witnz/witnz.yaml
-Restart=on-failure
-RestartSec=5s
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Enable and start:
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable witnz
-sudo systemctl start witnz
-sudo systemctl status witnz
-```
-
-## Development
-
-### Local Development with Docker
-
-```bash
-# Clone repository
-git clone https://github.com/Anes1032/witnz.git
-cd witnz
-
-# Start PostgreSQL + 3 witnz nodes
-docker-compose up -d
-
-# View logs
-docker-compose logs -f node1
-
-# Run tests
-make test
-
-# Stop environment
-docker-compose down
-```
-
-### Building from Source
-
-```bash
-# Build single binary
-make build
-
-# Build for all platforms
-make release
-
-# Run tests
-make test
-```
-
-## CLI Commands
-
-```bash
-witnz init       # Initialize replication slot and publication
-witnz start      # Start the node
-witnz status     # Display node and cluster status
-witnz verify     # Trigger immediate verification
-witnz version    # Show version information
-```
-
-## Current Status
-
-### ✅ v0.1.x - MVP Complete
-
-#### Core Features
-- ✅ Single binary deployment (~15MB)
-- ✅ PostgreSQL Logical Replication integration
-- ✅ Real-time `UPDATE`/`DELETE` detection
-- ✅ Hash chain with cryptographic guarantees
-- ✅ **Merkle Root verification for efficient tamper detection**
-- ✅ Raft consensus with multi-node replication
-- ✅ BoltDB embedded storage
-- ✅ Slack webhook alerts
-- ✅ Automatic leader election and failover
-- ✅ Graceful shutdown and cleanup
-
-#### Testing
-- ✅ Unit tests (40%+ coverage)
-- ✅ Integration tests with Docker Compose
-- ✅ Multi-node cluster tests
-
-### 📋 Roadmap - Phase 2 (Production Readiness)
-
-#### Reliability & Operations
-- [ ] Structured logging (slog) with configurable levels
-- [ ] Health check endpoints (liveness/readiness probes)
-- [ ] Prometheus metrics export
-- [ ] Automatic CDC reconnection with exponential backoff
-- [ ] Raft snapshot management and rotation
-- [ ] Dead letter queue for failed events
-
-#### API & Integration
-- [ ] HTTP REST API (status, verify, logs)
-- [ ] PagerDuty integration
-- [ ] Custom webhook support
-- [ ] Alert deduplication and throttling
-
-#### Monitoring & UI
-- [ ] Web dashboard for cluster visualization
-- [ ] Hash chain explorer
-- [ ] Verification history viewer
-- [ ] Alert management interface
-
-### 📋 Phase 3 - Enterprise Features
-
-- [ ] TLS/mTLS for inter-node communication
-- [ ] Encryption at rest for BoltDB
-- [ ] RBAC (Role-Based Access Control)
-- [ ] External anchoring (S3 Object Lock, blockchain)
-- [ ] Kubernetes Operator
-- [ ] Multi-region support
-
-## Architecture & Technology
+## Architecture
 
 ### Tech Stack
 
@@ -437,42 +184,81 @@ witnz version    # Show version information
 | Hash | SHA256 | Cryptographic integrity |
 | Alerts | Slack webhooks | Instant notifications |
 
-### Why Witnz?
+### What Witnz Detects
 
-**vs Hyperledger Fabric**
-- Much lighter weight (15MB vs GB)
-- Single binary deployment vs complex multi-container setup
-- No blockchain overhead
+| Attack Scenario | Detection Method | Response Time |
+|----------------|------------------|---------------|
+| `UPDATE`/`DELETE` via SQL | Logical Replication | **Instant** |
+| Direct database file modification | Merkle Root verification | **Next verification cycle** |
+| Offline tampering | Merkle Root verification | **On next verification** |
+| Phantom inserts | Merkle Root verification | **Next verification cycle** |
+| Record deletion | Merkle Root verification | **Next verification cycle** |
 
-**vs immudb**
-- Uses existing PostgreSQL, no migration needed
-- Multi-node Raft consensus for fault tolerance
-- Real-time CDC monitoring
+## Development
 
-**vs Amazon QLDB**
-- Cloud-agnostic, works with any PostgreSQL
-- Self-hosted, no vendor lock-in
-- Multi-node distributed verification
+### Local Development with Docker
 
-**vs pgaudit + S3**
-- Includes distributed verification and consensus
-- Real-time tamper detection and alerting
-- Automatic integrity verification
+```bash
+git clone https://github.com/Anes1032/witnz.git
+cd witnz
+docker-compose up -d
+```
 
-## Security Considerations
+### Building from Source
 
-- All hash chains use SHA256 cryptographic hashing
-- Raft consensus prevents single node compromise
-- Multi-node verification ensures data integrity
-- Logical Replication provides tamper-proof audit trail
-- Merkle Root verification catches offline tampering
+```bash
+make build
+make test
+```
 
-### Future Security Enhancements
+### Integration Tests
 
-- TLS/mTLS for inter-node communication
-- Encryption at rest for local storage
-- External anchoring (S3 Object Lock, blockchain timestamping)
-- HSM integration for key management
+```bash
+make test-append-only    # Real-time detection test
+make test-verify         # Merkle Root verification test
+```
+
+## Current Status
+
+### Implemented Features
+- Append-only mode with real-time UPDATE/DELETE detection
+- Merkle Root verification with specific tampered record identification
+- 3-node Raft cluster with automatic failover
+- PostgreSQL Logical Replication integration
+- Slack webhook alerts
+- Multi-platform support (Linux, macOS, Windows)
+
+## Comparison with immudb
+
+**Current Robustness:**
+
+Witnz currently has **lower robustness** compared to immudb in terms of tamper resistance:
+
+| Aspect | immudb | Witnz (Current - v0.1.0) |
+|--------|--------|--------------------------|
+| **Architecture** | Purpose-built immutable database | Sidecar monitoring tool for PostgreSQL |
+| **Leader Compromise** | Detectable (built-in cryptographic proofs) | **Not detectable** (Raft followers trust leader) |
+| **Data Model** | Immutable append-only ledger | PostgreSQL monitoring with hash chains |
+| **Migration Required** | Yes (switch to immudb database) | No (works with existing PostgreSQL) |
+| **Deployment** | Replace database entirely | Add sidecar binary |
+
+**Witnz's Limitation:**
+
+The current Raft-based implementation has a fundamental weakness: if the Raft leader is compromised, it can submit false hash values that followers will accept without verification. immudb does not have this limitation as it uses cryptographic proofs throughout.
+
+**Future Direction:**
+
+We are investigating external verification mechanisms to address this limitation while maintaining the lightweight, no-migration advantage.
+
+## CLI Commands
+
+```bash
+witnz init       # Initialize replication slot and publication
+witnz start      # Start the node
+witnz status     # Display node and cluster status
+witnz verify     # Trigger immediate verification
+witnz version    # Show version information
+```
 
 ## Contributing
 
@@ -482,7 +268,6 @@ We welcome contributions! Development guidelines:
 - Minimal code comments - prefer self-documenting code
 - Follow Go best practices
 - Write tests for new features
-- See [doc/](doc/) for detailed architecture
 
 ## License
 
@@ -491,7 +276,6 @@ MIT License
 ## Support
 
 - GitHub Issues: https://github.com/Anes1032/witnz/issues
-- Documentation: [doc/](doc/)
 
 ## Acknowledgments
 

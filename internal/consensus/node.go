@@ -82,27 +82,34 @@ func (n *Node) Start(ctx context.Context) error {
 	n.raft = ra
 
 	if n.config.Bootstrap {
-		servers := []raft.Server{
-			{
-				ID:      raftConfig.LocalID,
-				Address: transport.LocalAddr(),
-			},
+		hasState, err := raft.HasExistingState(logStore, stableStore, snapshotStore)
+		if err != nil {
+			return fmt.Errorf("failed to check existing state: %w", err)
 		}
 
-		for peerID, peerAddr := range n.config.PeerAddrs {
-			servers = append(servers, raft.Server{
-				ID:      raft.ServerID(peerID),
-				Address: raft.ServerAddress(peerAddr),
-			})
-		}
+		if !hasState {
+			servers := []raft.Server{
+				{
+					ID:      raftConfig.LocalID,
+					Address: transport.LocalAddr(),
+				},
+			}
 
-		configuration := raft.Configuration{
-			Servers: servers,
-		}
+			for peerID, peerAddr := range n.config.PeerAddrs {
+				servers = append(servers, raft.Server{
+					ID:      raft.ServerID(peerID),
+					Address: raft.ServerAddress(peerAddr),
+				})
+			}
 
-		future := ra.BootstrapCluster(configuration)
-		if err := future.Error(); err != nil {
-			return fmt.Errorf("failed to bootstrap cluster: %w", err)
+			configuration := raft.Configuration{
+				Servers: servers,
+			}
+
+			future := ra.BootstrapCluster(configuration)
+			if err := future.Error(); err != nil {
+				return fmt.Errorf("failed to bootstrap cluster: %w", err)
+			}
 		}
 	} else if len(n.config.PeerAddrs) > 0 {
 		if err := n.waitForLeader(); err != nil {
@@ -208,4 +215,21 @@ func (n *Node) Stats() map[string]string {
 		return map[string]string{"state": "not initialized"}
 	}
 	return n.raft.Stats()
+}
+
+func (n *Node) TransferLeadership() error {
+	if n.raft == nil {
+		return fmt.Errorf("raft not initialized")
+	}
+
+	if n.raft.State() != raft.Leader {
+		return fmt.Errorf("not the leader, cannot transfer")
+	}
+
+	future := n.raft.LeadershipTransfer()
+	if err := future.Error(); err != nil {
+		return fmt.Errorf("leadership transfer failed: %w", err)
+	}
+
+	return nil
 }
