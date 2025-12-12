@@ -35,7 +35,6 @@ type NodeConfig struct {
 
 type ProtectedTableConfig struct {
 	Name           string `mapstructure:"name"`
-	Mode           string `mapstructure:"mode"`
 	VerifyInterval string `mapstructure:"verify_interval"`
 }
 
@@ -95,12 +94,6 @@ func (c *Config) Validate() error {
 	}
 	if c.Node.DataDir == "" {
 		return fmt.Errorf("node.data_dir is required")
-	}
-
-	for _, table := range c.ProtectedTables {
-		if table.Mode != "append_only" && table.Mode != "state_integrity" {
-			return fmt.Errorf("invalid mode for table %s: %s (must be append_only or state_integrity)", table.Name, table.Mode)
-		}
 	}
 
 	return nil

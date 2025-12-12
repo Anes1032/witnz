@@ -63,56 +63,6 @@ func TestFSMApplyHashChain(t *testing.T) {
 	}
 }
 
-func TestFSMApplyMerkleRoot(t *testing.T) {
-	tmpfile, err := os.CreateTemp("", "witnz-consensus-test-*.db")
-	if err != nil {
-		t.Fatal(err)
-	}
-	tmpfile.Close()
-	defer os.Remove(tmpfile.Name())
-
-	store, err := storage.New(tmpfile.Name())
-	if err != nil {
-		t.Fatalf("Failed to create storage: %v", err)
-	}
-	defer store.Close()
-
-	fsm := NewFSM(store)
-
-	entry := &LogEntry{
-		Type:      LogEntryMerkleRoot,
-		TableName: "test_table",
-		Data: map[string]interface{}{
-			"root":         "merkle_root_hash",
-			"record_count": float64(100),
-		},
-		Timestamp: time.Now(),
-	}
-
-	data, err := json.Marshal(entry)
-	if err != nil {
-		t.Fatalf("Failed to marshal entry: %v", err)
-	}
-
-	log := &raft.Log{
-		Data: data,
-	}
-
-	result := fsm.Apply(log)
-	if result != nil {
-		t.Errorf("Apply failed: %v", result)
-	}
-
-	retrieved, err := store.GetMerkleRoot("test_table")
-	if err != nil {
-		t.Fatalf("GetMerkleRoot failed: %v", err)
-	}
-
-	if retrieved.Root != "merkle_root_hash" {
-		t.Errorf("Expected root merkle_root_hash, got %s", retrieved.Root)
-	}
-}
-
 func TestFSMSnapshot(t *testing.T) {
 	tmpfile, err := os.CreateTemp("", "witnz-consensus-test-*.db")
 	if err != nil {

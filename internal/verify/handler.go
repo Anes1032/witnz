@@ -1,6 +1,8 @@
 package verify
 
 import (
+	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -10,16 +12,8 @@ import (
 	"github.com/witnz/witnz/internal/storage"
 )
 
-type ProtectionMode string
-
-const (
-	AppendOnlyMode     ProtectionMode = "append_only"
-	StateIntegrityMode ProtectionMode = "state_integrity"
-)
-
 type TableConfig struct {
 	Name           string
-	Mode           ProtectionMode
 	VerifyInterval string
 }
 
@@ -56,42 +50,26 @@ func (h *HashChainHandler) AddTable(config *TableConfig) error {
 }
 
 func (h *HashChainHandler) HandleChange(event *cdc.ChangeEvent) error {
-	config, ok := h.tableConfigs[event.TableName]
+	_, ok := h.tableConfigs[event.TableName]
 	if !ok {
 		return nil
 	}
 
-	switch config.Mode {
-	case AppendOnlyMode:
-		return h.handleAppendOnly(event)
-	case StateIntegrityMode:
-		return h.handleStateIntegrity(event)
-	default:
-		return fmt.Errorf("unknown protection mode: %s", config.Mode)
-	}
-}
-
-func (h *HashChainHandler) handleAppendOnly(event *cdc.ChangeEvent) error {
+	// Reject UPDATE/DELETE on protected tables
 	if event.Operation == cdc.OperationUpdate || event.Operation == cdc.OperationDelete {
-		recordID := fmt.Sprintf("%v", event.PrimaryKey)
-		details := fmt.Sprintf("Unauthorized %s operation detected on protected table", event.Operation)
-
-		fmt.Printf("TAMPERING DETECTED: %s operation on append-only table %s (record: %s)\n",
-			event.Operation, event.TableName, recordID)
-
-		if h.alertManager != nil {
-			_ = h.alertManager.SendTamperAlert(event.TableName, string(event.Operation), recordID, details)
-		}
-
-		return nil
+		return NewTamperingError(event.TableName, string(event.Operation), "append-only")
 	}
 
+	// Process INSERT
 	chain, ok := h.hashChains[event.TableName]
 	if !ok {
 		return fmt.Errorf("no hash chain for table: %s", event.TableName)
 	}
 
 	previousHash := chain.GetPreviousHash()
+
+	// Calculate data hash of the record content
+	dataHash := calculateDataHash(event.NewData)
 
 	newHash, err := chain.Add(event.NewData)
 	if err != nil {
@@ -109,6 +87,7 @@ func (h *HashChainHandler) handleAppendOnly(event *cdc.ChangeEvent) error {
 		SequenceNum:   seqNum,
 		Hash:          newHash,
 		PreviousHash:  previousHash,
+		DataHash:      dataHash,
 		Timestamp:     time.Now(),
 		OperationType: string(event.Operation),
 		RecordID:      fmt.Sprintf("%v", event.PrimaryKey),
@@ -117,18 +96,10 @@ func (h *HashChainHandler) handleAppendOnly(event *cdc.ChangeEvent) error {
 	return h.storage.SaveHashEntry(entry)
 }
 
-func (h *HashChainHandler) handleStateIntegrity(event *cdc.ChangeEvent) error {
-	return nil
-}
-
 func (h *HashChainHandler) VerifyHashChain(tableName string) error {
-	config, ok := h.tableConfigs[tableName]
+	_, ok := h.tableConfigs[tableName]
 	if !ok {
 		return fmt.Errorf("table not configured: %s", tableName)
-	}
-
-	if config.Mode != AppendOnlyMode {
-		return fmt.Errorf("hash chain verification only supported for append_only mode")
 	}
 
 	chain := hash.NewHashChain("genesis")
@@ -153,4 +124,28 @@ func (h *HashChainHandler) VerifyHashChain(tableName string) error {
 	}
 
 	return nil
+}
+
+func calculateDataHash(data map[string]interface{}) string {
+	// Normalize data for consistent hashing
+	normalized := normalizeForHash(data)
+	jsonData, _ := json.Marshal(normalized)
+	hash := sha256.Sum256(jsonData)
+	return fmt.Sprintf("%x", hash)
+}
+
+// normalizeForHash normalizes data for consistent hash calculation
+// This ensures the same hash is produced regardless of data source (CDC vs DB query)
+// Excludes timestamp fields as they have different formats between CDC and DB
+func normalizeForHash(data map[string]interface{}) map[string]string {
+	result := make(map[string]string)
+	for k, v := range data {
+		// Skip timestamp fields that may have format differences
+		if k == "created_at" || k == "updated_at" {
+			continue
+		}
+		// Convert all values to string representation
+		result[k] = fmt.Sprintf("%v", v)
+	}
+	return result
 }

@@ -17,10 +17,7 @@ node:
 
 protected_tables:
   - name: audit_log
-    mode: append_only
-  - name: permissions
-    mode: state_integrity
-    verify_interval: 10s
+    verify_interval: 30s
 
 alerts:
   enabled: true

@@ -24,7 +24,6 @@ node:
 
 protected_tables:
   - name: audit_log
-    mode: append_only
 
 alerts:
   enabled: false
@@ -92,25 +91,6 @@ func TestValidate(t *testing.T) {
 					ID:       "node1",
 					BindAddr: "0.0.0.0:7000",
 					DataDir:  "/data",
-				},
-			},
-			wantErr: true,
-		},
-		{
-			name: "invalid table mode",
-			config: Config{
-				Database: DatabaseConfig{
-					Host:     "localhost",
-					Database: "testdb",
-					User:     "testuser",
-				},
-				Node: NodeConfig{
-					ID:       "node1",
-					BindAddr: "0.0.0.0:7000",
-					DataDir:  "/data",
-				},
-				ProtectedTables: []ProtectedTableConfig{
-					{Name: "test", Mode: "invalid"},
 				},
 			},
 			wantErr: true,

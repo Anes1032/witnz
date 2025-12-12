@@ -21,13 +21,9 @@ func NewRaftHashChainHandler(handler *HashChainHandler, raftNode *consensus.Node
 }
 
 func (h *RaftHashChainHandler) HandleChange(event *cdc.ChangeEvent) error {
-	config, ok := h.tableConfigs[event.TableName]
+	_, ok := h.tableConfigs[event.TableName]
 	if !ok {
 		return nil
-	}
-
-	if config.Mode != AppendOnlyMode {
-		return h.HashChainHandler.HandleChange(event)
 	}
 
 	if event.Operation == cdc.OperationUpdate || event.Operation == cdc.OperationDelete {
@@ -40,6 +36,7 @@ func (h *RaftHashChainHandler) HandleChange(event *cdc.ChangeEvent) error {
 	}
 
 	previousHash := chain.GetPreviousHash()
+	dataHash := calculateDataHash(event.NewData)
 	newHash, err := chain.Add(event.NewData)
 	if err != nil {
 		return fmt.Errorf("failed to add to hash chain: %w", err)
@@ -59,6 +56,7 @@ func (h *RaftHashChainHandler) HandleChange(event *cdc.ChangeEvent) error {
 				"sequence_num":   float64(seqNum),
 				"hash":           newHash,
 				"previous_hash":  previousHash,
+				"data_hash":      dataHash,
 				"operation_type": string(event.Operation),
 				"record_id":      fmt.Sprintf("%v", event.PrimaryKey),
 			},
@@ -69,8 +67,10 @@ func (h *RaftHashChainHandler) HandleChange(event *cdc.ChangeEvent) error {
 			return fmt.Errorf("failed to replicate via raft: %w", err)
 		}
 
+		fmt.Printf("Raft consensus: hash chain entry replicated for %s (seq=%d)\n",
+			event.TableName, seqNum)
 		return nil
 	}
 
-	return h.HashChainHandler.handleAppendOnly(event)
+	return h.HashChainHandler.HandleChange(event)
 }

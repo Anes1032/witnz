@@ -67,28 +67,6 @@ func TestStorage(t *testing.T) {
 		}
 	})
 
-	t.Run("SaveAndGetMerkleRoot", func(t *testing.T) {
-		entry := &MerkleRootEntry{
-			TableName:   "test_table",
-			Root:        "merkle_root_hash",
-			Timestamp:   time.Now(),
-			RecordCount: 100,
-		}
-
-		if err := storage.SaveMerkleRoot(entry); err != nil {
-			t.Fatalf("SaveMerkleRoot failed: %v", err)
-		}
-
-		retrieved, err := storage.GetMerkleRoot("test_table")
-		if err != nil {
-			t.Fatalf("GetMerkleRoot failed: %v", err)
-		}
-
-		if retrieved.Root != entry.Root {
-			t.Errorf("Expected root %s, got %s", entry.Root, retrieved.Root)
-		}
-	})
-
 	t.Run("SetAndGetMetadata", func(t *testing.T) {
 		key := "test_key"
 		value := "test_value"

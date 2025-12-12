@@ -27,7 +27,6 @@ func TestHashChainHandler(t *testing.T) {
 
 	config := &TableConfig{
 		Name: "test_table",
-		Mode: AppendOnlyMode,
 	}
 
 	err = handler.AddTable(config)
@@ -75,10 +74,13 @@ func TestHashChainHandler(t *testing.T) {
 			Timestamp: time.Now(),
 		}
 
-		// UPDATE should not return error but should NOT add to hash chain
+		// UPDATE should return TamperingError
 		err := handler.HandleChange(event)
-		if err != nil {
-			t.Errorf("HandleChange should not error on tampering detection: %v", err)
+		if err == nil {
+			t.Error("HandleChange should return error on UPDATE")
+		}
+		if !IsTamperingError(err) {
+			t.Errorf("Expected TamperingError, got: %v", err)
 		}
 	})
 
@@ -89,10 +91,13 @@ func TestHashChainHandler(t *testing.T) {
 			Timestamp: time.Now(),
 		}
 
-		// DELETE should not return error but should NOT add to hash chain
+		// DELETE should return TamperingError
 		err := handler.HandleChange(event)
-		if err != nil {
-			t.Errorf("HandleChange should not error on tampering detection: %v", err)
+		if err == nil {
+			t.Error("HandleChange should return error on DELETE")
+		}
+		if !IsTamperingError(err) {
+			t.Errorf("Expected TamperingError, got: %v", err)
 		}
 	})
 
@@ -128,7 +133,6 @@ func TestVerifyHashChain(t *testing.T) {
 
 	config := &TableConfig{
 		Name: "test_table",
-		Mode: AppendOnlyMode,
 	}
 
 	handler.AddTable(config)
