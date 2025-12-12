@@ -9,8 +9,9 @@ import (
 )
 
 var (
-	HashChainBucket = []byte("hashchain")
-	MetadataBucket  = []byte("metadata")
+	HashChainBucket        = []byte("hashchain")
+	MetadataBucket         = []byte("metadata")
+	MerkleCheckpointBucket = []byte("merkle_checkpoint")
 )
 
 type Storage struct {
@@ -28,6 +29,14 @@ type HashEntry struct {
 	RecordID      string    `json:"record_id"`
 }
 
+type MerkleCheckpoint struct {
+	TableName   string    `json:"table_name"`
+	SequenceNum uint64    `json:"sequence_num"`
+	MerkleRoot  string    `json:"merkle_root"`
+	Timestamp   time.Time `json:"timestamp"`
+	RecordCount int       `json:"record_count"`
+}
+
 func New(path string) (*Storage, error) {
 	db, err := bolt.Open(path, 0600, &bolt.Options{
 		Timeout: 1 * time.Second,
@@ -37,7 +46,7 @@ func New(path string) (*Storage, error) {
 	}
 
 	err = db.Update(func(tx *bolt.Tx) error {
-		for _, bucket := range [][]byte{HashChainBucket, MetadataBucket} {
+		for _, bucket := range [][]byte{HashChainBucket, MetadataBucket, MerkleCheckpointBucket} {
 			if _, err := tx.CreateBucketIfNotExists(bucket); err != nil {
 				return fmt.Errorf("failed to create bucket: %w", err)
 			}
@@ -145,4 +154,77 @@ func (s *Storage) GetMetadata(key string) (string, error) {
 	})
 
 	return value, err
+}
+
+func (s *Storage) SaveMerkleCheckpoint(checkpoint *MerkleCheckpoint) error {
+	return s.db.Update(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket(MerkleCheckpointBucket)
+
+		key := fmt.Sprintf("%s:%d", checkpoint.TableName, checkpoint.SequenceNum)
+
+		data, err := json.Marshal(checkpoint)
+		if err != nil {
+			return fmt.Errorf("failed to marshal checkpoint: %w", err)
+		}
+
+		return bucket.Put([]byte(key), data)
+	})
+}
+
+func (s *Storage) GetLatestMerkleCheckpoint(tableName string) (*MerkleCheckpoint, error) {
+	var latestCheckpoint *MerkleCheckpoint
+
+	err := s.db.View(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket(MerkleCheckpointBucket)
+		cursor := bucket.Cursor()
+
+		prefix := []byte(tableName + ":")
+
+		for k, v := cursor.Seek(prefix); k != nil && len(k) >= len(prefix) && string(k[:len(prefix)]) == string(prefix); k, v = cursor.Next() {
+			var checkpoint MerkleCheckpoint
+			if err := json.Unmarshal(v, &checkpoint); err != nil {
+				continue
+			}
+			latestCheckpoint = &checkpoint
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if latestCheckpoint == nil {
+		return nil, fmt.Errorf("no checkpoints found for table %s", tableName)
+	}
+
+	return latestCheckpoint, nil
+}
+
+func (s *Storage) GetAllHashEntries(tableName string) ([]*HashEntry, error) {
+	entries := make([]*HashEntry, 0)
+
+	err := s.db.View(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket(HashChainBucket)
+		cursor := bucket.Cursor()
+
+		prefix := []byte(tableName + ":")
+
+		for k, v := cursor.Seek(prefix); k != nil && len(k) >= len(prefix) && string(k[:len(prefix)]) == string(prefix); k, v = cursor.Next() {
+			var entry HashEntry
+			if err := json.Unmarshal(v, &entry); err != nil {
+				continue
+			}
+			entries = append(entries, &entry)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return entries, nil
 }
