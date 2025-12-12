@@ -181,11 +181,11 @@ When all Witnz nodes connect to the same PostgreSQL instance (e.g., RDS/Aurora),
 
 ```bash
 # Linux (amd64)
-curl -sSL https://github.com/Anes1032/witnz/releases/download/v0.1.2/witnz-linux-amd64 -o /usr/local/bin/witnz
+curl -sSL https://github.com/Anes1032/witnz/releases/download/v0.1.3/witnz-linux-amd64 -o /usr/local/bin/witnz
 chmod +x /usr/local/bin/witnz
 
 # macOS (arm64)
-curl -sSL https://github.com/Anes1032/witnz/releases/download/v0.1.2/witnz-darwin-arm64 -o /usr/local/bin/witnz
+curl -sSL https://github.com/Anes1032/witnz/releases/download/v0.1.3/witnz-darwin-arm64 -o /usr/local/bin/witnz
 chmod +x /usr/local/bin/witnz
 
 witnz version
@@ -357,7 +357,7 @@ make test-state-integrity
 
 ## Current Status
 
-### ✅ MVP Complete (v0.1.2)
+### ✅ MVP Complete (v0.1.3)
 
 #### Core Infrastructure
 - ✅ Configuration management (YAML + env vars)
