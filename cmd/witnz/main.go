@@ -170,19 +170,19 @@ var startCmd = &cobra.Command{
 		dbConnStr := fmt.Sprintf("host=%s port=%d dbname=%s user=%s password=%s sslmode=disable",
 			cfg.Database.Host, cfg.Database.Port, cfg.Database.Database,
 			cfg.Database.User, cfg.Database.Password)
-		verifier := verify.NewHashChainVerifier(store, dbConnStr)
+		merkleVerifier := verify.NewMerkleVerifier(store, dbConnStr)
 
 		for _, tableConfig := range cfg.ProtectedTables {
-			verifier.AddTable(&verify.TableConfig{
+			merkleVerifier.AddTable(&verify.TableConfig{
 				Name:           tableConfig.Name,
 				VerifyInterval: tableConfig.VerifyInterval,
 			})
 		}
 
-		if err := verifier.Start(ctx); err != nil {
-			return fmt.Errorf("failed to start hash chain verifier: %w", err)
+		if err := merkleVerifier.Start(ctx); err != nil {
+			return fmt.Errorf("failed to start Merkle verifier: %w", err)
 		}
-		defer verifier.Stop()
+		defer merkleVerifier.Stop()
 
 		fmt.Println("Witnz node is running. Press Ctrl+C to stop.")
 
@@ -241,7 +241,7 @@ var statusCmd = &cobra.Command{
 
 var verifyCmd = &cobra.Command{
 	Use:   "verify [table]",
-	Short: "Verify hash chain integrity",
+	Short: "Verify Merkle Root integrity",
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load(cfgFile)
@@ -256,14 +256,13 @@ var verifyCmd = &cobra.Command{
 		}
 		defer store.Close()
 
-		handler := verify.NewHashChainHandler(store)
+		ctx := context.Background()
 
-		for _, tableConfig := range cfg.ProtectedTables {
-			verifyConfig := &verify.TableConfig{
-				Name: tableConfig.Name,
-			}
-			handler.AddTable(verifyConfig)
-		}
+		dbConnStr := fmt.Sprintf("host=%s port=%d dbname=%s user=%s password=%s sslmode=disable",
+			cfg.Database.Host, cfg.Database.Port, cfg.Database.Database,
+			cfg.Database.User, cfg.Database.Password)
+
+		merkleVerifier := verify.NewMerkleVerifier(store, dbConnStr)
 
 		tablesToVerify := []string{}
 		if len(args) > 0 {
@@ -276,10 +275,10 @@ var verifyCmd = &cobra.Command{
 
 		for _, table := range tablesToVerify {
 			fmt.Printf("Verifying table: %s\n", table)
-			if err := handler.VerifyHashChain(table); err != nil {
+			if err := merkleVerifier.VerifyTable(ctx, table); err != nil {
 				fmt.Printf("  ❌ FAILED: %v\n", err)
 			} else {
-				fmt.Printf("  ✅ OK: Hash chain is intact\n")
+				fmt.Printf("  ✅ OK: Merkle Root is intact\n")
 			}
 		}
 
