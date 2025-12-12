@@ -372,57 +372,46 @@ witnz verify     # Trigger immediate verification
 witnz version    # Show version information
 ```
 
-## Current Status
+## Current Status## Current Status
 
-### ✅ v0.1.x - MVP Complete
+**v0.1.0 - MVP Released** ✅
 
-#### Core Features
-- ✅ Single binary deployment (~15MB)
-- ✅ PostgreSQL Logical Replication integration
-- ✅ Real-time `UPDATE`/`DELETE` detection
-- ✅ Hash chain with cryptographic guarantees
-- ✅ **Merkle Root verification for efficient tamper detection**
-- ✅ Raft consensus with multi-node replication
-- ✅ BoltDB embedded storage
-- ✅ Slack webhook alerts
-- ✅ Automatic leader election and failover
-- ✅ Graceful shutdown and cleanup
+Witnz has completed its MVP phase with core tamper detection capabilities:
 
-#### Testing
-- ✅ Unit tests (40%+ coverage)
-- ✅ Integration tests with Docker Compose
-- ✅ Multi-node cluster tests
+### ✅ Implemented Features
+- **Append-only Mode**: Real-time UPDATE/DELETE detection via PostgreSQL Logical Replication
+- **Merkle Root Verification**: Periodic integrity checks with specific tampered record identification
+- **Distributed Consensus**: 3-node Raft cluster with automatic failover
+- **Multi-platform Support**: Single binary for Linux, macOS, Windows (amd64/arm64)
+- **Alert System**: Slack webhook integration for tampering alerts
 
-### 📋 Roadmap - Phase 2 (Production Readiness)
+### 🔥 Phase 2: Core Technical Innovation (IN PROGRESS)
 
-#### Reliability & Operations
-- [ ] Structured logging (slog) with configurable levels
-- [ ] Health check endpoints (liveness/readiness probes)
-- [ ] Prometheus metrics export
-- [ ] Automatic CDC reconnection with exponential backoff
-- [ ] Raft snapshot management and rotation
-- [ ] Dead letter queue for failed events
+**Goal**: Establish absolute technical superiority through revolutionary features that competitors cannot replicate.
 
-#### API & Integration
-- [ ] HTTP REST API (status, verify, logs)
-- [ ] PagerDuty integration
-- [ ] Custom webhook support
-- [ ] Alert deduplication and throttling
+**Priority 1: Multi-region Witness Nodes & Zero-Trust Architecture**
+- Geographic distribution with high-latency Raft consensus (150ms+ RTT)
+- Witness node role: External validators that participate in consensus without accessing customer data
+- Hash-only mode: Witness nodes verify integrity using only cryptographic hashes (data privacy protection)
+- Automated witness rotation: Replace nodes every 7 days to prevent long-term attacks
 
-#### Monitoring & UI
-- [ ] Web dashboard for cluster visualization
-- [ ] Hash chain explorer
-- [ ] Verification history viewer
-- [ ] Alert management interface
+**Priority 2: External Anchoring (Tamper-proof External Proof)**
+- S3 Object Lock integration: Immutable checkpoints to detect all-node tampering (~$0.001/year cost)
+- Blockchain anchoring (optional): Ethereum/Bitcoin integration for compliance-grade proof
 
-### 📋 Phase 3 - Enterprise Features
+**Priority 3: Performance Optimizations**
+- Incremental Merkle Tree: Support billion-record tables with constant-time verification
+- CDC batch processing: 10x throughput improvement for high-volume workloads
 
-- [ ] TLS/mTLS for inter-node communication
-- [ ] Encryption at rest for BoltDB
-- [ ] RBAC (Role-Based Access Control)
-- [ ] External anchoring (S3 Object Lock, blockchain)
-- [ ] Kubernetes Operator
-- [ ] Multi-region support
+### 📋 Phase 3: Advanced Platform Features (PLANNED)
+
+After core technology is proven, additional platform capabilities:
+- Managed witness node infrastructure across multiple regions
+- Public audit log endpoints for transparency
+- Multi-tenant support for enterprise deployments
+- Web-based monitoring dashboard
+- Enhanced observability (metrics, logging, alerting)
+- Compliance tooling (SOC2, ISO27001 report generation)
 
 ## Architecture & Technology
 
