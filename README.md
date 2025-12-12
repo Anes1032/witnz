@@ -93,7 +93,6 @@ Witnz provides **two layers** of tamper detection:
   - Manual SQL executed while nodes were offline
   - Database restores from tampered backups
   - Phantom inserts (records added without INSERT operations)
-- **Performance**: Verifies millions of records in seconds (500x faster than per-record verification)
 
 ### Data Flow
 
@@ -338,15 +337,6 @@ cd witnz
 
 # Start PostgreSQL + 3 witnz nodes
 docker-compose up -d
-
-# View logs
-docker-compose logs -f node1
-
-# Run tests
-make test
-
-# Stop environment
-docker-compose down
 ```
 
 ### Building from Source
@@ -358,8 +348,19 @@ make build
 # Build for all platforms
 make release
 
-# Run tests
+# Run Unit tests
 make test
+```
+
+### Integration test
+
+```bash
+# WAL test
+make test-integration
+
+
+# Merkle tree test
+make test-verify
 ```
 
 ## CLI Commands
