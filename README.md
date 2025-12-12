@@ -386,38 +386,52 @@ Witnz has completed its MVP phase with core tamper detection capabilities:
 - **Multi-platform Support**: Single binary for Linux, macOS, Windows (amd64/arm64)
 - **Alert System**: Slack webhook integration for tampering alerts
 
-### 🔥 Phase 2: Core Technical Innovation (IN PROGRESS)
+### 🔥 Phase 2: Witnz Architecture Core (IN PROGRESS)
 
-**Goal**: Establish absolute technical superiority through revolutionary features that competitors cannot replicate.
+**Goal**: Implement revolutionary Witnz Node architecture (single-region PoC).
 
 **Terminology**:
 - **Raft Node**: Customer-operated node in their VPC (current implementation, forms Raft cluster)
-- **Witnz Node**: External monitoring node operated by Witnz Cloud (Phase 2, observer-only)
+- **Witnz Node**: External monitoring node operated by Witnz Cloud (observer-only, no voting rights)
 
-**Priority 1: Multi-region Witnz Nodes & Zero-Trust Architecture**
-- Witnz Nodes: External monitoring nodes that receive only hashes (no raw data access)
-- Observer-only: Witnz Nodes do NOT have Raft voting rights (customer Raft cluster remains independent)
-- Hash-only mode: Witnz Nodes verify integrity using only cryptographic hashes (data privacy protection)
-- Multi-region deployment: Witnz Nodes across US/EU/AP for geographic diversity
-- Automated rotation: Replace Witnz Nodes every 7 days to prevent long-term attacks
+**Witnz Node Architecture**:
+- Observer-only: Witnz Nodes do NOT have Raft voting rights
+- Hash-only mode: Witnz Nodes receive only hashes, never see raw data
+- Single-region PoC: Prove the concept before multi-region deployment
+- Inconsistency detection: Alert when Raft Nodes report different hashes
 
-**Priority 2: External Anchoring (Tamper-proof External Proof)**
-- S3 Object Lock integration: Immutable checkpoints to detect all-node tampering (~$0.001/year cost)
-- Blockchain anchoring (optional): Ethereum/Bitcoin integration for compliance-grade proof
+**External Anchoring**:
+- S3 Object Lock integration: Immutable checkpoints (~$0.001/year cost)
+- Blockchain anchoring (optional): Ethereum/Bitcoin integration for compliance
 
-**Priority 3: Performance Optimizations**
-- Incremental Merkle Tree: Support billion-record tables with constant-time verification
-- CDC batch processing: 10x throughput improvement for high-volume workloads
+### 📈 Phase 3: Performance & Operations (PLANNED)
 
-### 📋 Phase 3: Advanced Platform Features (PLANNED)
+**Goal**: Optimize for production workloads and add basic operational capabilities.
 
-After core technology is proven, additional platform capabilities:
-- Managed Witnz Node infrastructure across multiple regions
-- Public audit log endpoints for transparency
-- Multi-tenant support for enterprise deployments
+**Performance Optimizations**:
+- Incremental Merkle Tree: Support billion-record tables
+- CDC batch processing: 10x throughput improvement
+
+**Basic Operations**:
+- Health check endpoints
+- Structured logging
+- CDC reconnection logic
+
+### 🌐 Phase 4: SaaS Platform & Enterprise (PLANNED)
+
+**Goal**: Build Witnz-as-a-Service platform with enterprise features.
+
+**Multi-region & Advanced Features**:
+- Multi-region Witnz Node deployment (US/EU/AP)
+- Automated Witnz Node rotation (7-day cycle)
+- Witnz Pool management
+
+**SaaS Platform**:
+- Managed Witnz Node infrastructure
+- Public audit log endpoints
+- Multi-tenant support
 - Web-based monitoring dashboard
-- Enhanced observability (metrics, logging, alerting)
-- Compliance tooling (SOC2, ISO27001 report generation)
+- Compliance tooling (SOC2, ISO27001)
 
 ## Architecture & Technology
 

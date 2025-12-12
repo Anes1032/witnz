@@ -267,21 +267,48 @@ alerts:
 - ✅ `witnz verify` - Manual verification trigger
 - ✅ Graceful shutdown with cleanup
 
-### 📋 Phase 2: Core Technical Innovation & Competitive Differentiation (CURRENT FOCUS)
+### 📋 Phase 1.5: MVP Remaining Items (HIGH PRIORITY)
 
-**Goal**: Implement revolutionary features that establish absolute technical superiority over competitors (immudb, QLDB, Hyperledger). Focus on multi-region Witnz monitoring nodes, data masking, and external anchoring - features that are technically innovative and impossible for competitors to replicate.
+**Goal**: Complete critical Raft cluster tampering detection and recovery features before moving to Witnz architecture.
 
-**Philosophy**: Build the technology moat first (Zero-Trust Architecture + External Anchoring), then add operational/SaaS features later.
+#### Raft Node Tampering Detection & Recovery
+- [ ] **Raft Node Tampering Detection**
+  - Detect when a Raft Node's hash chain becomes inconsistent with cluster consensus
+  - Alert when tampering is detected on any Raft Node
+  - Log tampering events with node ID, table name, sequence number
+
+- [ ] **Automatic Raft Node Shutdown on Tampering**
+  - Automatically stop compromised Raft Node to prevent further damage
+  - Implement graceful shutdown with alert notification
+  - Prevent compromised node from participating in consensus
+
+- [ ] **Leader Rotation via Voting**
+  - Implement periodic leader rotation mechanism
+  - Force leader step-down after configurable interval (e.g., 24 hours)
+  - Trigger new leader election via Raft voting
+  - Configuration: `raft.leader_rotation_interval`
+
+- [ ] **Leader Change on Leader Node Tampering**
+  - Detect tampering on current leader node
+  - Immediately trigger leader step-down
+  - Force follower nodes to elect new leader
+  - Ensure cluster continues operating with new leader
+
+### 📋 Phase 2: Witnz Architecture Core Implementation (CURRENT FOCUS)
+
+**Goal**: Implement the revolutionary Witnz Node architecture that establishes absolute technical superiority. Focus ONLY on the core Zero-Trust architecture without SaaS features.
+
+**Scope**: Single-region Witnz Node PoC + External Anchoring. Multi-region deployment and auto-rotation deferred to Phase 4.
 
 **Terminology**:
 - **Raft Node**: Customer-operated node in their VPC (forms Raft cluster, has voting rights)
 - **Witnz Node**: External monitoring node operated by Witnz Cloud (observer-only, no voting rights)
 
-#### Priority 1: Multi-region Witnz Nodes & Zero-Trust Architecture 🔥 (REVOLUTIONARY - DO THIS FIRST)
+#### Priority 1: Witnz Node Architecture (Observer-only, No Voting Rights) 🔥 (REVOLUTIONARY)
 
 **This is what sets Witnz apart from ALL competitors. No other solution has external monitoring nodes with mutual distrust.**
 
-##### Witnz Node Architecture (Observer-only, No Voting Rights)
+##### Witnz Node Core Implementation
 - [ ] **Witnz Node Role Implementation**
   - Witnz Nodes do NOT have Raft voting rights (Observer role only)
   - Raft Nodes (customer): Form 3-5 node Raft cluster, vote, achieve consensus in customer VPC
@@ -289,52 +316,31 @@ alerts:
   - No cross-region Raft consensus needed (Raft cluster stays in customer VPC)
   - Configuration: `node.role: raft | witnz`
 
-- [ ] **Hash Submission Protocol**
-  - Raft Nodes: After achieving Raft consensus, submit `(record_id, chain_hash, data_hash, merkle_root)` to configured Witnz Nodes
-  - Witnz Nodes: Verify Ed25519 signature, store in local BoltDB, detect inconsistencies
+- [ ] **Hash Submission Protocol (gRPC)**
+  - Raft Nodes: After achieving Raft consensus, submit `(record_id, chain_hash, data_hash, merkle_root)` to configured Witnz Node
+  - Witnz Node: Verify Ed25519 signature, store in local BoltDB, detect inconsistencies
   - gRPC endpoint: `WitnzService.SubmitCheckpoint()`
   - Authentication: Ed25519 signature per customer to prevent tampering
-  - Configuration: Customer Raft Nodes list `witnz_nodes: [witnz-us-1, witnz-eu-1, witnz-ap-1]`
+  - Configuration: Customer Raft Nodes specify `witnz_node: witnz-node-1:9000`
 
-- [ ] **Multi-region Witnz Node Deployment**
-  - Deploy Witnz Nodes across 3+ regions (US-East, EU-West, AP-Tokyo)
-  - Each Witnz Node is independent (no Raft between them)
-  - Geographic diversity prevents single-region attacks
-  - Test with AWS/GCP/Azure multi-region setup
+- [ ] **Single Witnz Node PoC**
+  - Deploy single Witnz Node for proof of concept
+  - Test hash-only submission from customer Raft Nodes
+  - Verify inconsistency detection works
+  - Multi-region deployment deferred to Phase 4
 
 ##### Data Masking for Witnz Nodes (Hash-only Mode)
 - [ ] **Hash-only Submission Protocol**
   - Raft Nodes: Calculate `chain_hash` and `data_hash` from raw database records
-  - Witnz Nodes: Receive only hashes, never see raw data or connect to customer database
+  - Witnz Node: Receives only hashes, never sees raw data or connects to customer database
   - Privacy-preserving: Customer data never leaves customer VPC
-  - Witnz Nodes can still detect tampering via hash verification
+  - Witnz Node can still detect tampering via hash verification
 
 - [ ] **Inconsistency Detection**
-  - Witnz Nodes receive checkpoints from multiple customer Raft Nodes
+  - Witnz Node receives checkpoints from multiple customer Raft Nodes
   - If same `(table, sequence_num)` has different `merkle_root` from different Raft Nodes → Alert tampering
-  - Cross-check between Witnz Nodes for additional validation
   - Alert channel: Slack, PagerDuty, or customer webhook
   - Configuration: `witnz.inconsistency_alert_threshold`
-
-##### Witnz Node Rotation & Long-term Attack Prevention
-- [ ] **Witnz Pool Management**
-  - Create pool of N Witnz Nodes (e.g., 10 nodes across 3 regions: US, EU, AP)
-  - Maintain minimum M active Witnz Nodes (e.g., 4) per customer
-  - Implement `WitnzRotator` for periodic node replacement
-  - Configuration: `witnz.pool_size`, `witnz.active_count`, `witnz.rotation_interval`
-
-- [ ] **Automated Rolling Rotation**
-  - Every 7 days, replace 1 Witnz Node with fresh node from pool
-  - No Raft membership change needed (Witnz Nodes are not Raft voters)
-  - Simply update customer's `witnz_nodes` configuration list
-  - Old Witnz Node archives data and shuts down gracefully
-  - Log rotation events for audit trail
-
-- [ ] **Attack Resistance Testing**
-  - Simulate scenario: Attacker compromises Witnz Node on Day 1
-  - Verify: Node is automatically rotated out by Day 7
-  - Test: New Witnz Node can still verify integrity from S3/Blockchain anchors
-  - Document rotation strategy in security whitepaper
 
 #### Priority 2: External Anchoring (Tamper-proof External Proof) 🔥 (CRITICAL)
 
@@ -372,7 +378,11 @@ alerts:
   - Create compliance report generator for auditors
   - Cost estimation tool (gas price × frequency)
 
-#### Priority 3: Performance Optimizations for Scale 🚀 (IMPORTANT)
+### 📋 Phase 3: Performance Optimization & Basic Operations
+
+**Goal**: Optimize performance for production workloads and add minimal operational capabilities.
+
+#### Performance Optimizations 🚀
 
 ##### Incremental Merkle Tree
 - [ ] **Avoid Full Table Scan on Every Verification**
@@ -394,40 +404,65 @@ alerts:
   - Single Raft log entry for batch (reduce consensus overhead)
   - Trade-off: Slightly delayed detection (100ms) for 10x throughput
 
-#### Priority 4: Minimal Operational Essentials 🟡 (LOW - DEFER TO PHASE 3)
+#### Basic Operational Essentials 🟡
 
-**These are "nice to have" for operations but don't provide competitive advantage. Implement after core innovation is complete.**
-
-##### Basic Reliability (Only Critical Items)
-- [ ] **CDC Reconnection** (only if it breaks often)
+##### Basic Reliability
+- [ ] **CDC Reconnection**
   - Exponential backoff retry on PostgreSQL disconnect
   - Persist LSN for resume after restart
 
-- [ ] **Raft Snapshot Rotation** (only if storage fills up)
+- [ ] **Raft Snapshot Rotation**
   - Keep last 3 snapshots, delete older ones
   - Automatic snapshot every 10,000 entries
 
-##### Basic Observability (Minimal)
-- [ ] **Health Check Endpoint** (for Kubernetes liveness probe)
+##### Basic Observability
+- [ ] **Health Check Endpoint**
   - `GET /healthz` returns 200 if process running
   - `GET /readyz` returns 200 if Raft + CDC connected
 
-- [ ] **Basic Logging** (only if debugging is hard)
+- [ ] **Basic Logging**
   - Replace `fmt.Printf` with `slog` for structured logs
   - Configurable log level (debug, info, warn, error)
 
-**IMPORTANT: Do NOT implement dashboards, metrics, alerts, UI until Phase 3. Focus on technical innovation only.**
+### 📋 Phase 4: SaaS Platform & Enterprise Features
 
-### 📋 Phase 3: SaaS Platform & Business Features
+**Goal**: Build Witnz-as-a-Service (WaaS) platform for managed Witnz nodes, multi-tenant support, and enterprise compliance features.
 
-**Goal**: Build Witness-as-a-Service (WaaS) platform for managed witness nodes, multi-tenant support, and enterprise compliance features.
+#### Multi-region Witnz Nodes & Advanced Features
 
-#### Witness-as-a-Service (WaaS) Platform
-- [ ] **Managed Witness Node Infrastructure**
-  - Multi-region witness node deployment (US, EU, AP)
-  - Automated witness node provisioning and lifecycle management
-  - Customer witness node registration API
-  - Witness node health monitoring and auto-recovery
+##### Multi-region Witnz Node Deployment
+- [ ] **Geographic Distribution**
+  - Deploy Witnz Nodes across 3+ regions (US-East, EU-West, AP-Tokyo)
+  - Each Witnz Node is independent (no Raft between them)
+  - Geographic diversity prevents single-region attacks
+  - Test with AWS/GCP/Azure multi-region setup
+
+##### Witnz Node Rotation & Long-term Attack Prevention
+- [ ] **Witnz Pool Management**
+  - Create pool of N Witnz Nodes (e.g., 10 nodes across 3 regions: US, EU, AP)
+  - Maintain minimum M active Witnz Nodes (e.g., 4) per customer
+  - Implement `WitnzRotator` for periodic node replacement
+  - Configuration: `witnz.pool_size`, `witnz.active_count`, `witnz.rotation_interval`
+
+- [ ] **Automated Rolling Rotation**
+  - Every 7 days, replace 1 Witnz Node with fresh node from pool
+  - No Raft membership change needed (Witnz Nodes are not Raft voters)
+  - Update customer's `witnz_nodes` configuration via dashboard
+  - Old Witnz Node archives data and shuts down gracefully
+  - Log rotation events for audit trail
+
+- [ ] **Attack Resistance Testing**
+  - Simulate scenario: Attacker compromises Witnz Node on Day 1
+  - Verify: Node is automatically rotated out by Day 7
+  - Test: New Witnz Node can still verify integrity from S3/Blockchain anchors
+  - Document rotation strategy in security whitepaper
+
+#### Witnz-as-a-Service (WaaS) Platform
+- [ ] **Managed Witnz Node Infrastructure**
+  - Multi-region Witnz node deployment (US, EU, AP)
+  - Automated Witnz node provisioning and lifecycle management
+  - Customer Raft node registration API
+  - Witnz node health monitoring and auto-recovery
 
 - [ ] **Public Audit Log**
   - Public HTTP endpoint for Merkle Root checkpoints
@@ -435,10 +470,10 @@ alerts:
   - JSON API for programmatic verification
   - Timestamped proof generation for compliance
 
-- [ ] **Witness Node Marketplace** (Optional)
-  - Allow third-party organizations to run witness nodes
-  - Trust scoring for witness node providers
-  - Decentralized witness network
+- [ ] **Witnz Node Marketplace** (Optional)
+  - Allow third-party organizations to run Witnz nodes
+  - Trust scoring for Witnz node providers
+  - Decentralized Witnz network
 
 #### SaaS Multi-tenant Platform
 - [ ] **Multi-tenant Architecture**
@@ -465,13 +500,13 @@ alerts:
   - Remote cluster configuration
   - Centralized verification triggers
   - Customer-specific alert routing
-  - Witness node management API
+  - Witnz node management API
 
 #### Security & Compliance
 - [ ] **TLS/mTLS for Inter-node Communication**
   - Certificate-based authentication
   - Automatic certificate rotation
-  - mTLS for customer-to-witness communication
+  - mTLS for Raft node-to-Witnz node communication
 
 - [ ] **Encryption at Rest**
   - BoltDB encryption (AES-256)
@@ -508,10 +543,10 @@ alerts:
   - Rollback procedures
 
 #### Enterprise Features
-- [ ] **Private Witness Nodes**
-  - Customer-dedicated witness nodes (VPC peering)
-  - On-premise witness node support
-  - Custom witness rotation policies
+- [ ] **Private Witnz Nodes**
+  - Customer-dedicated Witnz nodes (VPC peering)
+  - On-premise Witnz node support
+  - Custom Witnz rotation policies
 
 - [ ] **Advanced Alerting**
   - Integration with enterprise monitoring (DataDog, New Relic)
