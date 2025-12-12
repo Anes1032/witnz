@@ -44,10 +44,10 @@ graph TB
         App3[App Server 3]
     end
 
-    subgraph "Witnz Nodes (Sidecar)"
-        Node1[Witnz Node 1<br/>Leader]
-        Node2[Witnz Node 2<br/>Follower]
-        Node3[Witnz Node 3<br/>Follower]
+    subgraph "Raft Nodes (Sidecar)"
+        Node1[Raft Node 1<br/>Leader]
+        Node2[Raft Node 2<br/>Follower]
+        Node3[Raft Node 3<br/>Follower]
     end
 
     subgraph "Storage"
@@ -390,11 +390,16 @@ Witnz has completed its MVP phase with core tamper detection capabilities:
 
 **Goal**: Establish absolute technical superiority through revolutionary features that competitors cannot replicate.
 
-**Priority 1: Multi-region Witness Nodes & Zero-Trust Architecture**
-- Geographic distribution with high-latency Raft consensus (150ms+ RTT)
-- Witness node role: External validators that participate in consensus without accessing customer data
-- Hash-only mode: Witness nodes verify integrity using only cryptographic hashes (data privacy protection)
-- Automated witness rotation: Replace nodes every 7 days to prevent long-term attacks
+**Terminology**:
+- **Raft Node**: Customer-operated node in their VPC (current implementation, forms Raft cluster)
+- **Witnz Node**: External monitoring node operated by Witnz Cloud (Phase 2, observer-only)
+
+**Priority 1: Multi-region Witnz Nodes & Zero-Trust Architecture**
+- Witnz Nodes: External monitoring nodes that receive only hashes (no raw data access)
+- Observer-only: Witnz Nodes do NOT have Raft voting rights (customer Raft cluster remains independent)
+- Hash-only mode: Witnz Nodes verify integrity using only cryptographic hashes (data privacy protection)
+- Multi-region deployment: Witnz Nodes across US/EU/AP for geographic diversity
+- Automated rotation: Replace Witnz Nodes every 7 days to prevent long-term attacks
 
 **Priority 2: External Anchoring (Tamper-proof External Proof)**
 - S3 Object Lock integration: Immutable checkpoints to detect all-node tampering (~$0.001/year cost)
@@ -407,7 +412,7 @@ Witnz has completed its MVP phase with core tamper detection capabilities:
 ### 📋 Phase 3: Advanced Platform Features (PLANNED)
 
 After core technology is proven, additional platform capabilities:
-- Managed witness node infrastructure across multiple regions
+- Managed Witnz Node infrastructure across multiple regions
 - Public audit log endpoints for transparency
 - Multi-tenant support for enterprise deployments
 - Web-based monitoring dashboard

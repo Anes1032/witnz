@@ -269,68 +269,76 @@ alerts:
 
 ### 📋 Phase 2: Core Technical Innovation & Competitive Differentiation (CURRENT FOCUS)
 
-**Goal**: Implement revolutionary features that establish absolute technical superiority over competitors (immudb, QLDB, Hyperledger). Focus on multi-region witness nodes, data masking, and external anchoring - features that are technically innovative and impossible for competitors to replicate.
+**Goal**: Implement revolutionary features that establish absolute technical superiority over competitors (immudb, QLDB, Hyperledger). Focus on multi-region Witnz monitoring nodes, data masking, and external anchoring - features that are technically innovative and impossible for competitors to replicate.
 
 **Philosophy**: Build the technology moat first (Zero-Trust Architecture + External Anchoring), then add operational/SaaS features later.
 
-#### Priority 1: Multi-region Witness Nodes & Zero-Trust Architecture 🔥 (REVOLUTIONARY - DO THIS FIRST)
+**Terminology**:
+- **Raft Node**: Customer-operated node in their VPC (forms Raft cluster, has voting rights)
+- **Witnz Node**: External monitoring node operated by Witnz Cloud (observer-only, no voting rights)
 
-**This is what sets Witnz apart from ALL competitors. No other solution has external witness nodes with mutual distrust.**
+#### Priority 1: Multi-region Witnz Nodes & Zero-Trust Architecture 🔥 (REVOLUTIONARY - DO THIS FIRST)
 
-##### Geographic Distribution & Hybrid Consensus
-- [ ] **Raft Timeout Tuning for High-Latency**
-  - Adjust heartbeat timeout for cross-region latency (150ms+ RTT)
-  - Test with AWS EC2 multi-region setup (US-East, EU-West, AP-Tokyo)
-  - Configure election timeout to prevent false leader failures
-  - Benchmark consensus performance with 3-region setup
+**This is what sets Witnz apart from ALL competitors. No other solution has external monitoring nodes with mutual distrust.**
 
-- [ ] **Witness Node Role Implementation**
-  - Create `WitnessNode` type (read-only consensus participant)
-  - Distinguish between customer nodes (full nodes) and witness nodes
-  - Implement hash-only replication for witness nodes (no raw data access)
-  - Configuration: `node.role: customer | witness`
+##### Witnz Node Architecture (Observer-only, No Voting Rights)
+- [ ] **Witnz Node Role Implementation**
+  - Witnz Nodes do NOT have Raft voting rights (Observer role only)
+  - Raft Nodes (customer): Form 3-5 node Raft cluster, vote, achieve consensus in customer VPC
+  - Witnz Nodes (external): Receive hashes from Raft Nodes, store, monitor, alert
+  - No cross-region Raft consensus needed (Raft cluster stays in customer VPC)
+  - Configuration: `node.role: raft | witnz`
 
-- [ ] **Hybrid Raft Cluster (Customer + Witness)**
-  - Support mixed cluster: 3 customer nodes + 4 witness nodes
-  - Ensure witness nodes participate in consensus but don't access DB
-  - Test cluster formation with mixed node types
-  - Verify quorum enforcement across customer and witness nodes
+- [ ] **Hash Submission Protocol**
+  - Raft Nodes: After achieving Raft consensus, submit `(record_id, chain_hash, data_hash, merkle_root)` to configured Witnz Nodes
+  - Witnz Nodes: Verify Ed25519 signature, store in local BoltDB, detect inconsistencies
+  - gRPC endpoint: `WitnzService.SubmitCheckpoint()`
+  - Authentication: Ed25519 signature per customer to prevent tampering
+  - Configuration: Customer Raft Nodes list `witnz_nodes: [witnz-us-1, witnz-eu-1, witnz-ap-1]`
 
-##### Data Masking for Witness Nodes (Hash-only Mode)
-- [ ] **Hash-only Replication Protocol**
-  - Customer nodes: Calculate `chain_hash` and `data_hash` from raw data
-  - Witness nodes: Receive only hashes via Raft, never see raw data
-  - Implement `HashOnlyFSM` for witness nodes (no DB connection)
-  - Verify witness nodes can detect tampering without data access
+- [ ] **Multi-region Witnz Node Deployment**
+  - Deploy Witnz Nodes across 3+ regions (US-East, EU-West, AP-Tokyo)
+  - Each Witnz Node is independent (no Raft between them)
+  - Geographic diversity prevents single-region attacks
+  - Test with AWS/GCP/Azure multi-region setup
 
-- [ ] **Privacy-Preserving Verification**
-  - Customer nodes send only `(record_id, chain_hash, data_hash)` to Raft
-  - Witness nodes store and verify hash chains without knowing content
-  - Test: Witness node should detect if customer node's hash is inconsistent
-  - Configuration: `node.hash_only_mode: true` for witness nodes
+##### Data Masking for Witnz Nodes (Hash-only Mode)
+- [ ] **Hash-only Submission Protocol**
+  - Raft Nodes: Calculate `chain_hash` and `data_hash` from raw database records
+  - Witnz Nodes: Receive only hashes, never see raw data or connect to customer database
+  - Privacy-preserving: Customer data never leaves customer VPC
+  - Witnz Nodes can still detect tampering via hash verification
 
-##### Witness Node Rotation & Long-term Attack Prevention
-- [ ] **Witness Pool Management**
-  - Create pool of N witness nodes (e.g., 10 nodes across 3 regions)
-  - Maintain minimum M active witnesses (e.g., 4) in cluster
-  - Implement `WitnessRotator` for periodic node replacement
-  - Configuration: `witness.pool_size`, `witness.active_count`, `witness.rotation_interval`
+- [ ] **Inconsistency Detection**
+  - Witnz Nodes receive checkpoints from multiple customer Raft Nodes
+  - If same `(table, sequence_num)` has different `merkle_root` from different Raft Nodes → Alert tampering
+  - Cross-check between Witnz Nodes for additional validation
+  - Alert channel: Slack, PagerDuty, or customer webhook
+  - Configuration: `witnz.inconsistency_alert_threshold`
+
+##### Witnz Node Rotation & Long-term Attack Prevention
+- [ ] **Witnz Pool Management**
+  - Create pool of N Witnz Nodes (e.g., 10 nodes across 3 regions: US, EU, AP)
+  - Maintain minimum M active Witnz Nodes (e.g., 4) per customer
+  - Implement `WitnzRotator` for periodic node replacement
+  - Configuration: `witnz.pool_size`, `witnz.active_count`, `witnz.rotation_interval`
 
 - [ ] **Automated Rolling Rotation**
-  - Every 7 days, replace 1 witness node with fresh node from pool
-  - Use Raft's `AddVoter` and `RemoveServer` for seamless transition
-  - Ensure no downtime during rotation (quorum maintained)
+  - Every 7 days, replace 1 Witnz Node with fresh node from pool
+  - No Raft membership change needed (Witnz Nodes are not Raft voters)
+  - Simply update customer's `witnz_nodes` configuration list
+  - Old Witnz Node archives data and shuts down gracefully
   - Log rotation events for audit trail
 
 - [ ] **Attack Resistance Testing**
-  - Simulate scenario: Attacker compromises witness node on Day 1
+  - Simulate scenario: Attacker compromises Witnz Node on Day 1
   - Verify: Node is automatically rotated out by Day 7
-  - Test: New witness node detects tampering from compromised history
+  - Test: New Witnz Node can still verify integrity from S3/Blockchain anchors
   - Document rotation strategy in security whitepaper
 
 #### Priority 2: External Anchoring (Tamper-proof External Proof) 🔥 (CRITICAL)
 
-**Defeats "all nodes compromised" scenario. This + Witness Nodes = unbreakable.**
+**Defeats "all nodes compromised" scenario. This + Witnz Nodes = unbreakable.**
 
 ##### S3 Object Lock Integration
 - [ ] **S3 Anchor Implementation**
