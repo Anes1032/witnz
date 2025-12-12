@@ -31,8 +31,7 @@ func (h *RaftHashChainHandler) HandleChange(event *cdc.ChangeEvent) error {
 	}
 
 	if event.Operation == cdc.OperationUpdate || event.Operation == cdc.OperationDelete {
-		return fmt.Errorf("TAMPERING DETECTED: %s operation on append-only table %s",
-			event.Operation, event.TableName)
+		return NewTamperingError(event.TableName, string(event.Operation), "append-only")
 	}
 
 	chain, ok := h.hashChains[event.TableName]
