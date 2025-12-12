@@ -9,8 +9,8 @@ type TamperingError struct {
 }
 
 func (e *TamperingError) Error() string {
-	return fmt.Sprintf("TAMPERING DETECTED: %s operation on %s table %s",
-		e.Operation, e.Message, e.TableName)
+	return fmt.Sprintf("[%s] TAMPERING DETECTED: %s operation on table %s",
+		e.Message, e.Operation, e.TableName)
 }
 
 func (e *TamperingError) IsTampering() bool {

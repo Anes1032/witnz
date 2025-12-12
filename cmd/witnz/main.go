@@ -41,7 +41,7 @@ var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print version information",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("witnz v0.1.0-alpha")
+		fmt.Println("witnz v0.2.0")
 		fmt.Println("PostgreSQL Tamper Detection System")
 	},
 }
@@ -100,11 +100,10 @@ var startCmd = &cobra.Command{
 		baseHandler := verify.NewHashChainHandler(store)
 
 		for _, tableConfig := range cfg.ProtectedTables {
-			fmt.Printf("Protecting table: %s (mode: %s)\n", tableConfig.Name, tableConfig.Mode)
+			fmt.Printf("Protecting table: %s\n", tableConfig.Name)
 
 			verifyConfig := &verify.TableConfig{
 				Name: tableConfig.Name,
-				Mode: verify.ProtectionMode(tableConfig.Mode),
 			}
 
 			if err := baseHandler.AddTable(verifyConfig); err != nil {
@@ -168,26 +167,22 @@ var startCmd = &cobra.Command{
 			return fmt.Errorf("failed to start CDC manager: %w", err)
 		}
 
-		// Start State Integrity Verifier for state_integrity mode tables
-		dbConnStr := fmt.Sprintf("host=%s port=%d dbname=%s user=%s password=%s",
+		dbConnStr := fmt.Sprintf("host=%s port=%d dbname=%s user=%s password=%s sslmode=disable",
 			cfg.Database.Host, cfg.Database.Port, cfg.Database.Database,
 			cfg.Database.User, cfg.Database.Password)
-		stateVerifier := verify.NewStateIntegrityVerifier(store, dbConnStr)
+		verifier := verify.NewHashChainVerifier(store, dbConnStr)
 
 		for _, tableConfig := range cfg.ProtectedTables {
-			if tableConfig.Mode == "state_integrity" {
-				stateVerifier.AddTable(&verify.TableConfig{
-					Name:           tableConfig.Name,
-					Mode:           verify.StateIntegrityMode,
-					VerifyInterval: tableConfig.VerifyInterval,
-				})
-			}
+			verifier.AddTable(&verify.TableConfig{
+				Name:           tableConfig.Name,
+				VerifyInterval: tableConfig.VerifyInterval,
+			})
 		}
 
-		if err := stateVerifier.Start(ctx); err != nil {
-			return fmt.Errorf("failed to start state integrity verifier: %w", err)
+		if err := verifier.Start(ctx); err != nil {
+			return fmt.Errorf("failed to start hash chain verifier: %w", err)
 		}
-		defer stateVerifier.Stop()
+		defer verifier.Stop()
 
 		fmt.Println("Witnz node is running. Press Ctrl+C to stop.")
 
@@ -229,16 +224,14 @@ var statusCmd = &cobra.Command{
 		fmt.Printf("\nProtected Tables:\n")
 
 		for _, tableConfig := range cfg.ProtectedTables {
-			fmt.Printf("  - %s (mode: %s)\n", tableConfig.Name, tableConfig.Mode)
+			fmt.Printf("  - %s\n", tableConfig.Name)
 
-			if tableConfig.Mode == "append_only" {
-				latest, err := store.GetLatestHashEntry(tableConfig.Name)
-				if err == nil {
-					fmt.Printf("    Latest sequence: %d\n", latest.SequenceNum)
-					fmt.Printf("    Latest hash: %s\n", latest.Hash[:16])
-				} else {
-					fmt.Printf("    No entries yet\n")
-				}
+			latest, err := store.GetLatestHashEntry(tableConfig.Name)
+			if err == nil {
+				fmt.Printf("    Latest sequence: %d\n", latest.SequenceNum)
+				fmt.Printf("    Latest hash: %s\n", latest.Hash[:16])
+			} else {
+				fmt.Printf("    No entries yet\n")
 			}
 		}
 
@@ -268,7 +261,6 @@ var verifyCmd = &cobra.Command{
 		for _, tableConfig := range cfg.ProtectedTables {
 			verifyConfig := &verify.TableConfig{
 				Name: tableConfig.Name,
-				Mode: verify.ProtectionMode(tableConfig.Mode),
 			}
 			handler.AddTable(verifyConfig)
 		}
@@ -278,9 +270,7 @@ var verifyCmd = &cobra.Command{
 			tablesToVerify = append(tablesToVerify, args[0])
 		} else {
 			for _, tc := range cfg.ProtectedTables {
-				if tc.Mode == "append_only" {
-					tablesToVerify = append(tablesToVerify, tc.Name)
-				}
+				tablesToVerify = append(tablesToVerify, tc.Name)
 			}
 		}
 

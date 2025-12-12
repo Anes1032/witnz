@@ -7,8 +7,7 @@ import (
 type LogEntryType string
 
 const (
-	LogEntryHashChain  LogEntryType = "hash_chain"
-	LogEntryMerkleRoot LogEntryType = "merkle_root"
+	LogEntryHashChain LogEntryType = "hash_chain"
 )
 
 type LogEntry struct {

@@ -9,9 +9,8 @@ import (
 )
 
 var (
-	HashChainBucket  = []byte("hashchain")
-	MerkleRootBucket = []byte("merkleroot")
-	MetadataBucket   = []byte("metadata")
+	HashChainBucket = []byte("hashchain")
+	MetadataBucket  = []byte("metadata")
 )
 
 type Storage struct {
@@ -23,16 +22,10 @@ type HashEntry struct {
 	SequenceNum   uint64    `json:"sequence_num"`
 	Hash          string    `json:"hash"`
 	PreviousHash  string    `json:"previous_hash"`
+	DataHash      string    `json:"data_hash"`
 	Timestamp     time.Time `json:"timestamp"`
 	OperationType string    `json:"operation_type"`
 	RecordID      string    `json:"record_id"`
-}
-
-type MerkleRootEntry struct {
-	TableName   string    `json:"table_name"`
-	Root        string    `json:"root"`
-	Timestamp   time.Time `json:"timestamp"`
-	RecordCount int       `json:"record_count"`
 }
 
 func New(path string) (*Storage, error) {
@@ -44,7 +37,7 @@ func New(path string) (*Storage, error) {
 	}
 
 	err = db.Update(func(tx *bolt.Tx) error {
-		for _, bucket := range [][]byte{HashChainBucket, MerkleRootBucket, MetadataBucket} {
+		for _, bucket := range [][]byte{HashChainBucket, MetadataBucket} {
 			if _, err := tx.CreateBucketIfNotExists(bucket); err != nil {
 				return fmt.Errorf("failed to create bucket: %w", err)
 			}
@@ -129,42 +122,6 @@ func (s *Storage) GetLatestHashEntry(tableName string) (*HashEntry, error) {
 	}
 
 	return latestEntry, nil
-}
-
-func (s *Storage) SaveMerkleRoot(entry *MerkleRootEntry) error {
-	return s.db.Update(func(tx *bolt.Tx) error {
-		bucket := tx.Bucket(MerkleRootBucket)
-
-		key := []byte(entry.TableName)
-
-		data, err := json.Marshal(entry)
-		if err != nil {
-			return fmt.Errorf("failed to marshal merkle root entry: %w", err)
-		}
-
-		return bucket.Put(key, data)
-	})
-}
-
-func (s *Storage) GetMerkleRoot(tableName string) (*MerkleRootEntry, error) {
-	var entry MerkleRootEntry
-
-	err := s.db.View(func(tx *bolt.Tx) error {
-		bucket := tx.Bucket(MerkleRootBucket)
-
-		data := bucket.Get([]byte(tableName))
-		if data == nil {
-			return fmt.Errorf("merkle root not found for table %s", tableName)
-		}
-
-		return json.Unmarshal(data, &entry)
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	return &entry, nil
 }
 
 func (s *Storage) SetMetadata(key, value string) error {
