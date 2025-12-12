@@ -114,16 +114,31 @@ func (m *Manager) receiveLoop(ctx context.Context) {
 			return
 		default:
 			if err := m.client.ReceiveMessage(ctx); err != nil {
+				if tamperingErr, ok := err.(TamperingDetector); ok {
+					fmt.Printf("🚨 SECURITY ALERT: %v\n", err)
+
+					m.mu.RLock()
+					if m.alertManager != nil {
+						_ = m.alertManager.SendTamperAlert(
+							tamperingErr.GetTableName(),
+							tamperingErr.GetOperation(),
+							"N/A",
+							"Unauthorized modification attempt detected",
+						)
+					}
+					m.mu.RUnlock()
+
+					continue
+				}
+
 				fmt.Printf("Error receiving message: %v\n", err)
 				errorCount++
 
-				// Exponential backoff
 				backoff := time.Duration(math.Pow(2, float64(errorCount))) * time.Second
 				if backoff > maxBackoff {
 					backoff = maxBackoff
 				}
 
-				// Send alert if configured
 				m.mu.RLock()
 				if m.alertManager != nil {
 					_ = m.alertManager.SendSystemAlert(
@@ -142,7 +157,6 @@ func (m *Manager) receiveLoop(ctx context.Context) {
 					return
 				}
 			} else {
-				// Reset error count on success
 				errorCount = 0
 			}
 		}
@@ -157,6 +171,9 @@ func (m *Manager) HandleChange(event *ChangeEvent) error {
 
 	for _, handler := range handlers {
 		if err := handler.HandleChange(event); err != nil {
+			if _, ok := err.(TamperingDetector); ok {
+				return err
+			}
 			return fmt.Errorf("handler failed: %w", err)
 		}
 	}
