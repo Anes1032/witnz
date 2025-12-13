@@ -158,64 +158,54 @@ func (v *MerkleVerifier) performFullVerification(ctx context.Context, tableName 
 }
 
 func (v *MerkleVerifier) performDetailedVerification(ctx context.Context, tableName, storedMerkleRoot string) error {
-	conn, err := pgx.Connect(ctx, v.dbConnStr)
+	// Build expected tree from BoltDB (O(n))
+	expectedTree, boltdbIDs, err := v.buildTreeFromBoltDB(tableName)
 	if err != nil {
-		return fmt.Errorf("failed to connect to database: %w", err)
-	}
-	defer conn.Close(ctx)
-
-	entries, err := v.storage.GetAllHashEntries(tableName)
-	if err != nil {
-		return fmt.Errorf("failed to get hash entries: %w", err)
+		return fmt.Errorf("failed to build expected tree: %w", err)
 	}
 
-	dbRecordIDs := make(map[string]bool)
-	rows, err := conn.Query(ctx, fmt.Sprintf("SELECT id FROM %s", quoteIdentifier(tableName)))
+	// Build actual tree from PostgreSQL (O(n))
+	actualTree, pgIDs, err := v.buildTreeFromPostgreSQL(ctx, tableName)
 	if err != nil {
-		return fmt.Errorf("failed to query IDs: %w", err)
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var id interface{}
-		if err := rows.Scan(&id); err != nil {
-			return fmt.Errorf("failed to scan ID: %w", err)
-		}
-		dbRecordIDs[fmt.Sprintf("%v", id)] = true
+		return fmt.Errorf("failed to build actual tree: %w", err)
 	}
 
 	tamperedRecords := []string{}
 
-	for _, entry := range entries {
-		id := extractIDFromRecordID(entry.RecordID)
-
-		if !dbRecordIDs[id] {
-			msg := fmt.Sprintf("seq=%d (record deleted: id=%s)", entry.SequenceNum, id)
-			tamperedRecords = append(tamperedRecords, msg)
-			fmt.Printf("  TAMPERING: %s\n", msg)
-			continue
-		}
-
-		delete(dbRecordIDs, id)
-
-		recordData, err := v.getRecordFromDB(ctx, conn, tableName, entry.RecordID)
-		if err != nil {
-			tamperedRecords = append(tamperedRecords, fmt.Sprintf("seq=%d (record unavailable: id=%s)", entry.SequenceNum, id))
-			continue
-		}
-
-		currentDataHash := hash.CalculateDataHash(recordData)
-		if currentDataHash != entry.DataHash {
-			msg := fmt.Sprintf("seq=%d (data modified: id=%s, expected hash=%s, actual hash=%s)",
-				entry.SequenceNum, id, entry.DataHash[:16]+"...", currentDataHash[:16]+"...")
+	// Check for phantom inserts (records in PostgreSQL not in BoltDB)
+	for id := range pgIDs {
+		if !boltdbIDs[id] {
+			msg := fmt.Sprintf("found extra record in DB not in hash chain (Phantom Insert): id=%s", id)
 			tamperedRecords = append(tamperedRecords, msg)
 			fmt.Printf("  TAMPERING: %s\n", msg)
 		}
 	}
 
-	if len(dbRecordIDs) > 0 {
-		for id := range dbRecordIDs {
-			msg := fmt.Sprintf("found extra record in DB not in hash chain (Phantom Insert): id=%s", id)
+	// Check for deleted records (records in BoltDB not in PostgreSQL)
+	for id := range boltdbIDs {
+		if !pgIDs[id] {
+			msg := fmt.Sprintf("record deleted: id=%s", id)
+			tamperedRecords = append(tamperedRecords, msg)
+			fmt.Printf("  TAMPERING: %s\n", msg)
+		}
+	}
+
+	// Use efficient tree comparison to find modified records
+	differingRecords := hash.CompareTreesDetailed(expectedTree, actualTree)
+	fmt.Printf("  Tree comparison found %d differing records (checked %d total)\n",
+		len(differingRecords), expectedTree.GetLeafCount())
+
+	for _, diff := range differingRecords {
+		id := extractIDFromRecordID(diff.RecordID)
+
+		// Skip if already reported as insert/delete
+		if !boltdbIDs[id] || !pgIDs[id] {
+			continue
+		}
+
+		if diff.Type == "modified" {
+			msg := fmt.Sprintf("data modified: id=%s, expected hash=%s..., actual hash=%s...",
+				id, diff.ExpectedHash[:16], diff.ActualHash[:16])
 			tamperedRecords = append(tamperedRecords, msg)
 			fmt.Printf("  TAMPERING: %s\n", msg)
 		}
@@ -233,11 +223,81 @@ func (v *MerkleVerifier) performDetailedVerification(ctx context.Context, tableN
 	}
 
 	// No tampering detected - update checkpoint with current state
-	currentMerkleRoot, recordCount, err := v.calculateCurrentMerkleRoot(ctx, tableName)
+	return v.createCheckpoint(ctx, tableName, actualTree.GetRoot(), actualTree.GetLeafCount())
+}
+
+// buildTreeFromBoltDB builds a Merkle tree from BoltDB entries
+func (v *MerkleVerifier) buildTreeFromBoltDB(tableName string) (*hash.MerkleTreeBuilder, map[string]bool, error) {
+	entries, err := v.storage.GetAllHashEntries(tableName)
 	if err != nil {
-		return fmt.Errorf("failed to calculate current Merkle Root: %w", err)
+		return nil, nil, err
 	}
-	return v.createCheckpoint(ctx, tableName, currentMerkleRoot, recordCount)
+
+	builder := hash.NewMerkleTreeBuilder()
+	ids := make(map[string]bool)
+
+	for _, entry := range entries {
+		builder.AddLeafHash(entry.RecordID, entry.DataHash)
+		id := extractIDFromRecordID(entry.RecordID)
+		ids[id] = true
+	}
+
+	if len(entries) > 0 {
+		if err := builder.Build(); err != nil {
+			return nil, nil, err
+		}
+	}
+
+	return builder, ids, nil
+}
+
+// buildTreeFromPostgreSQL builds a Merkle tree from PostgreSQL data
+func (v *MerkleVerifier) buildTreeFromPostgreSQL(ctx context.Context, tableName string) (*hash.MerkleTreeBuilder, map[string]bool, error) {
+	conn, err := pgx.Connect(ctx, v.dbConnStr)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to connect to database: %w", err)
+	}
+	defer conn.Close(ctx)
+
+	rows, err := conn.Query(ctx, fmt.Sprintf("SELECT * FROM %s ORDER BY id", quoteIdentifier(tableName)))
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to query table: %w", err)
+	}
+	defer rows.Close()
+
+	builder := hash.NewMerkleTreeBuilder()
+	ids := make(map[string]bool)
+
+	for rows.Next() {
+		fieldDescs := rows.FieldDescriptions()
+		values, err := rows.Values()
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to scan row: %w", err)
+		}
+
+		recordData := make(map[string]interface{})
+		var recordID string
+		for i, fd := range fieldDescs {
+			fieldName := string(fd.Name)
+			recordData[fieldName] = values[i]
+			if fieldName == "id" {
+				recordID = fmt.Sprintf("%v", values[i])
+			}
+		}
+
+		if err := builder.AddLeaf(recordID, recordData); err != nil {
+			return nil, nil, fmt.Errorf("failed to add leaf: %w", err)
+		}
+		ids[recordID] = true
+	}
+
+	if len(ids) > 0 {
+		if err := builder.Build(); err != nil {
+			return nil, nil, fmt.Errorf("failed to build tree: %w", err)
+		}
+	}
+
+	return builder, ids, nil
 }
 
 func (v *MerkleVerifier) calculateCurrentMerkleRoot(ctx context.Context, tableName string) (string, int, error) {
