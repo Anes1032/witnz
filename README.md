@@ -6,8 +6,6 @@
 
 Witnz = External verification layer for any consensus system
 
-Witnz is both a **concept** (Proof of Observation) and a **product** (Audit-as-a-Service). A fundamental rethinking of how we verify consensus in distributed systems, delivered as a production-ready SaaS platform.
-
 **The Idea:**
 What if we could verify the trustworthiness of any consensus system (Raft, BFT, Paxos) by having known third parties (not anonymous observers) watch and certify what they see? No computation, no complex protocols - just observation by legally accountable entities.
 
@@ -237,62 +235,6 @@ graph TB
 - **Witnz Nodes (External)**: Observer-only, no voting rights, receive hash-only submissions
 - **Privacy**: Witnz Nodes never see raw data, only cryptographic hashes
 - **Consensus Verification**: If Raft Nodes submit different hashes → Majority vote detects tampering
-
-#### Phase 4: The Trinity Consensus (Future)
-
-```mermaid
-graph TB
-    subgraph "Customer VPC (Prover)"
-        RN1[Raft Node 1<br/>Leader]
-        RN2[Raft Node 2<br/>Follower]
-        RN3[Raft Node 3<br/>Follower]
-        PG[(PostgreSQL<br/>RDS/Aurora)]
-    end
-
-    subgraph "Witnz Cloud (Neutral Third Party)"
-        WC[Multi-Tenant Hash Receiver]
-        WDB[(Hash Storage)]
-        DASH[Customer Dashboard]
-        S3[S3 Object Lock]
-        BC[Blockchain Optional]
-    end
-
-    subgraph "Auditor (Adversarial Oversight)"
-        AUD[Auditor Dashboard]
-        CERT[Certificate<br/>Generation]
-    end
-
-    PG -->|Logical Replication| RN1
-    PG -->|Logical Replication| RN2
-    PG -->|Logical Replication| RN3
-
-    RN1 <-->|Raft Consensus| RN2
-    RN2 <-->|Raft Consensus| RN3
-    RN3 <-->|Raft Consensus| RN1
-
-    RN1 -.->|Hash Submission via TLS| WC
-    RN2 -.->|Hash Submission via TLS| WC
-    RN3 -.->|Hash Submission via TLS| WC
-
-    WC --> WDB
-    WC --> DASH
-    WC --> S3
-    WC --> BC
-
-    WC -.->|Read-only Hash Stream| AUD
-    WDB -.-> AUD
-    AUD --> CERT
-
-    style WC fill:#e1f5ff
-    style AUD fill:#ffe1e1
-    style DASH fill:#e1ffe1
-    style CERT fill:#ffe1e1
-```
-
-**The Trinity Model:**
-- **Prover (Customer)**: Runs Raft cluster, submits hashes (vested interest in proving integrity)
-- **Witnz Cloud (Neutral)**: Independent third-party SaaS, no raw data access, provides legal attestation
-- **Auditor (Adversarial)**: External oversight (audit firms, regulators), mutual distrust, independent verification
 
 ### Multi-Layered Protection
 
@@ -688,7 +630,7 @@ Witnz has completed its MVP phase with core Raft Feudalism implementation:
 - ✅ Hash submission protocol (gRPC)
 - ✅ Majority vote verification logic
 - ❌ External Anchoring (deferred to Phase 3)
-- ❌ Multi-region deployment (deferred to Phase 4)
+- ❌ Multi-region deployment (deferred to Phase 3)
 
 ### 📈 Phase 3: Operational Hardening & External Insurance (PLANNED)
 
@@ -699,85 +641,18 @@ Witnz has completed its MVP phase with core Raft Feudalism implementation:
 - Blockchain (optional): Ethereum/Bitcoin for compliance
 - Purpose: Insurance against all-node compromise
 
+**Multi-region Deployment & Infrastructure**:
+- Multi-region Witnz Node deployment (US-East, EU-West, APAC-Tokyo)
+- Geographic distribution for higher attack resistance
+- Kubernetes deployment with Helm charts
+- Automatic node rotation (prevent long-term compromise)
+- Health checks and readiness probes
+- Data residency compliance (GDPR, CCPA)
+
 **Performance**:
 - Incremental Merkle Tree (billion-record support)
 - CDC batch processing (10x throughput)
 - Health checks, structured logging, CDC reconnection
-
-### 🏢 Phase 4: The Trinity Consensus - Enterprise/SaaS Model (PLANNED)
-
-**Goal**: Transform Witnz into production-ready Audit-as-a-Service with legally defensible third-party verification.
-
-**Philosophy**: Identity matters more than quantity - "who is observing" > "how many observers"
-
----
-
-#### The Trinity Consensus: 3-Party Verification
-
-Instead of anonymous observers, The Trinity relies on **identity and role** of three parties:
-
-**1. Prover Node (Customer Infrastructure)**
-- Customer's Raft cluster in their VPC
-- Data owner proving integrity
-- Runs witnz-agent (Go binary sidecar)
-- Submits hash chains to Witnz Cloud
-
-**2. Witnz Cloud (Neutral Third Party)**
-- SaaS provider operated by Witnz
-- Multi-tenant hash preservation
-- No raw data access (hash-only)
-- Independent verification and timestamping
-
-**3. Auditor Node (Adversarial Oversight)**
-- External audit firms or regulators
-- Adversarial verification layer
-- Legal standing and accountability
-- Optional: Customer's existing auditor (Big 4, etc.)
-
-**Why Trinity > Anonymous Observers:**
-- **Legal standing**: Known third parties can testify in court
-- **No Sybil attacks**: Requires business contracts and payment
-- **Compliance-ready**: Auditor participation built-in
-- **Simple monetization**: Subscription model (no token complexity)
-
----
-
-#### SaaS Business Model: Audit-as-a-Service
-
-**Customer Deployment:**
-- Install witnz-agent in customer VPC (auto-connects to Witnz Cloud)
-- Zero-touch onboarding with API key
-- Hash-only submission (no raw data leaves infrastructure)
-
-**Witnz Cloud Infrastructure:**
-- Multi-tenant gRPC hash receiver (supports 1000+ customers)
-- Customer dashboard (real-time integrity status, alerts)
-- Automatic anchoring (S3 Object Lock + optional blockchain)
-- PDF certificate generation for audits (SOC2, ISO27001)
-
-**Auditor Portal:**
-- Customers invite auditors via email/API
-- Read-only hash stream access
-- Independent verification without customer involvement
-- Signed attestation reports
-
-**Value Proposition:**
-- **"Set it and forget it"**: Deploy once, automatic protection forever
-- **Audit cost reduction**: Pre-generated compliance evidence (30-50% time savings)
-- **Internal fraud deterrence**: Employees know tampering is externally verified
-- **Customer transparency**: "Verified by Witnz" trust badge
-
-**Pricing Model:**
-- Starter: $99/month per table (up to 1M records)
-- Professional: $499/month (unlimited tables, 10M records, auditor access)
-- Enterprise: Custom (multi-region, dedicated nodes, blockchain anchoring, SLA)
-
----
-
-**Key Differentiator:**
-> **Traditional Audit**: Single point of trust (the auditor)
-> **Blockchain**: Expensive computational proof (overkill for most use cases)
-> **Witnz Trinity**: Three-party verification with legal standing - practical, affordable, compliance-ready
 
 ## Architecture & Technology
 
@@ -866,15 +741,12 @@ Witnz is **Audit-as-a-Service** - continuous database integrity verification wit
 - **PostgreSQL Logical Replication** for change detection
 - **Democratic majority vote** for external consensus verification
 
-### Future Enhancements (Phase 3-4)
+### Future Enhancements (Phase 3+)
 
 - TLS/mTLS for inter-node communication
 - Encryption at rest for local storage
 - External anchoring (S3 Object Lock, blockchain) for compliance
 - HSM integration for key management
-- Multi-tenant Witnz Cloud SaaS platform
-- Auditor portal with independent verification
-- PDF certificate generation for SOC2/ISO27001 audits
 
 ## Contributing
 
