@@ -30,41 +30,44 @@ PostgreSQL tampering detection is just the **first use case**. Witnz's lightweig
 - **Scientific Research**: Reproducible research data
 - **NFT Metadata**: Permanent metadata persistence
 
-## Proof of Observation (PoObs): A New Consensus Mechanism
+## Proof of Observation (PoObs): A New Consensus Verification Mechanism
 
-Witnz introduces **Proof of Observation (PoObs)** - a novel consensus mechanism that proves what the majority of independent observers witnessed, not what is computationally proven.
+Witnz introduces **Proof of Observation (PoObs)** - a novel consensus verification mechanism that verifies what the majority of independent observers witnessed, not what is computationally proven.
 
 ### How Proof of Observation Works
 
 **Core Principle:**
-> PoObs does NOT prove "what is true"
-> PoObs proves "what was observed by the majority"
+> PoObs does NOT create consensus
+> PoObs **verifies** consensus by checking what the majority of observers witnessed
 
 **Example:**
 ```
-1,000,001 observers report: "We observed value X"
-1 observer reports: "I observed value Y"
+Internal System (e.g., Raft): Creates consensus → hash value X
+External Observers:
+  - 1,000,001 observers report: "We observed hash X"
+  - 1 observer reports: "I observed hash Y"
 
-PoObs Result: "1,000,001 observers agree on X"
-NOT: "X is the absolute truth"
+PoObs Result: "1,000,001 observers verify hash X"
+→ Internal consensus is verified as trustworthy
 ```
 
 **The Process:**
-1. Multiple independent observer nodes monitor the same data source
-2. Each observer reports what they witnessed (hash values)
-3. Observers compare their observations via majority vote
-4. Consensus is determined by what most observers agree upon
-5. No computation required - only observation and comparison
+1. Internal system creates consensus (e.g., Raft cluster agrees on hash values)
+2. Multiple independent observer nodes monitor the internal consensus
+3. Each observer reports what they witnessed (hash values)
+4. Observers perform majority vote verification
+5. If majority agrees → consensus is verified; if not → tampering detected
+6. No computation required - only observation and comparison
 
-### Comparison with Existing Consensus Mechanisms
+### Comparison with Existing Consensus/Verification Mechanisms
 
-| Consensus Mechanism | What it proves | Resource cost | Attack vector | Barrier to entry | Primary Use Case |
-|-------------------|----------------|---------------|---------------|------------------|------------------|
-| **Proof of Work (PoW)** | Most computation performed | Very high (mining hardware, electricity) | 51% hashrate | High (expensive equipment) | Cryptocurrency |
-| **Proof of Stake (PoS)** | Most stake locked | High (capital requirement) | 51% stake | High (capital) | Cryptocurrency |
-| **Byzantine Fault Tolerant (BFT)** | 2/3+ nodes agree despite malicious nodes | Medium-High (complex coordination) | 1/3+ Byzantine nodes | Medium (permissioned network) | Permissioned blockchain |
-| **Proof of Authority (PoA)** | Trusted authority vouches | Low (trust-based) | Authority compromise | High (permission required) | Private blockchain |
-| **Proof of Observation (PoObs)** | **Most observers agree** | **Minimal (15MB binary)** | **51% of observers** | **Low (anyone can run)** | **Distributed consensus verification** |
+| Mechanism | What it proves/verifies | Resource cost | Attack vector | Barrier to entry | Primary Use Case |
+|-----------|------------------------|---------------|---------------|------------------|------------------|
+| **Proof of Work (PoW)** | Most computation performed (consensus) | Very high (mining hardware, electricity) | 51% hashrate | High (expensive equipment) | Cryptocurrency |
+| **Proof of Stake (PoS)** | Most stake locked (consensus) | High (capital requirement) | 51% stake | High (capital) | Cryptocurrency |
+| **Byzantine Fault Tolerant (BFT)** | 2/3+ nodes agree despite malicious nodes (consensus) | Medium-High (complex coordination) | 1/3+ Byzantine nodes | Medium (permissioned network) | Permissioned blockchain |
+| **Proof of Authority (PoA)** | Trusted authority vouches (consensus) | Low (trust-based) | Authority compromise | High (permission required) | Private blockchain |
+| **Proof of Observation (PoObs)** | **Most observers agree (verification)** | **Minimal (15MB binary)** | **51% of observers** | **Low (anyone can run)** | **Consensus verification** |
 
 ### Why Proof of Observation is Revolutionary
 
@@ -79,39 +82,43 @@ While BFT and PoObs both handle malicious nodes, they differ fundamentally in ar
 
 | Aspect | BFT (e.g., PBFT, Tendermint) | PoObs (Witnz) |
 |--------|------------------------------|---------------|
-| **Architecture** | Single consensus layer | Two-tier (Raft + External observers) |
-| **Coordination** | All nodes participate in voting | Internal (Raft) + External (observers) |
+| **Architecture** | Single consensus layer | Two-tier (Raft consensus + External observers) |
+| **Coordination** | All nodes participate in consensus voting | Internal consensus (Raft) + External verification (observers) |
 | **Communication** | O(n²) messages between nodes | Linear hash submission to observers |
 | **Fault Tolerance** | Tolerates <1/3 Byzantine nodes | Detects >50% observer compromise |
-| **Performance** | Slower (complex coordination) | Fast (Raft internal) + Async (observer verification) |
+| **Performance** | Slower (complex coordination) | Fast (Raft consensus) + Async (observer verification) |
 | **Scalability** | Limited (communication overhead) | High (observers don't coordinate with each other) |
 | **Setup** | Requires known validator set | Open participation (anyone can observe) |
-| **Primary Goal** | Single consensus cluster tolerates Byzantine faults | External verification of internal consensus |
+| **Primary Goal** | Create Byzantine fault-tolerant consensus | Verify existing consensus via external observation |
 
 **Key Differentiators:**
 
-1. **Two-Tier Architecture**:
+1. **Consensus vs Verification**:
+   - BFT: Creates consensus among nodes (all nodes agree on state)
+   - PoObs: Verifies existing consensus (external observers check if internal consensus is trustworthy)
+
+2. **Two-Tier Architecture**:
    - BFT: All nodes in single consensus cluster
-   - PoObs: Fast Raft consensus internally + External observer verification
+   - PoObs: Fast Raft consensus internally + External observer verification layer
 
-2. **Async Observation vs Sync Consensus**:
+3. **Async Verification vs Sync Consensus**:
    - BFT: Synchronous coordination between all nodes (complex, slower)
-   - PoObs: Observers receive hashes asynchronously, no inter-observer coordination needed
+   - PoObs: Observers verify asynchronously, no inter-observer coordination needed
 
-3. **Scalability**:
+4. **Scalability**:
    - BFT: O(n²) message complexity limits practical node count (~100 nodes)
    - PoObs: Linear scaling - can have thousands of observers without performance degradation
 
-4. **Open Participation**:
+5. **Open Participation**:
    - BFT: Typically permissioned (must know validator set in advance)
    - PoObs: Anyone can run observer node (15MB binary, no permission needed)
 
-5. **Use Case**:
-   - BFT: Designed for blockchain consensus (single truth across cluster)
-   - PoObs: Designed for verification (external observers detect internal tampering)
+6. **Purpose**:
+   - BFT: Designed for creating consensus (single truth across cluster despite Byzantine faults)
+   - PoObs: Designed for verifying consensus (external observers detect internal tampering)
 
 **Complementary, Not Competing:**
-Witnz could theoretically use BFT internally instead of Raft. The innovation is the two-tier architecture (internal consensus + external observation), not the choice of internal consensus algorithm.
+Witnz could theoretically use BFT internally instead of Raft. The innovation is the two-tier architecture (consensus creation + consensus verification), not the choice of consensus algorithm.
 
 ### Attack Resistance through Numbers
 
