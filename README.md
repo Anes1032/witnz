@@ -228,27 +228,60 @@ make test-verify         # Merkle Root verification test
 - Slack webhook alerts
 - Multi-platform support (Linux, macOS, Windows)
 
-## Comparison with immudb
+## Comparison with Other Solutions
 
-**Current Robustness:**
+| Solution | Migration Required | Deployment | Trust Model |
+|----------|-------------------|------------|-------------|
+| **Witnz** | No | Sidecar binary (~15MB) | Distributed Raft nodes |
+| **pgaudit** | No | PostgreSQL extension | Single server logs |
+| **immudb** | Yes (full DB replacement) | Dedicated database | immudb server |
+| **Amazon QLDB** | Yes (full DB replacement) | AWS managed service | AWS infrastructure |
+| **Hyperledger Fabric** | Yes (new infrastructure) | Multi-GB blockchain | Consortium nodes |
 
-Witnz currently has **lower robustness** compared to immudb in terms of tamper resistance:
+### vs pgaudit
+- pgaudit only logs queries; Witnz actively verifies data integrity
+- pgaudit logs can be tampered; Witnz uses distributed hash chains
+- Witnz provides real-time alerts on tampering
 
-| Aspect | immudb | Witnz (Current - v0.1.0) |
-|--------|--------|--------------------------|
-| **Architecture** | Purpose-built immutable database | Sidecar monitoring tool for PostgreSQL |
-| **Leader Compromise** | Detectable (built-in cryptographic proofs) | **Not detectable** (Raft followers trust leader) |
-| **Data Model** | Immutable append-only ledger | PostgreSQL monitoring with hash chains |
-| **Migration Required** | Yes (switch to immudb database) | No (works with existing PostgreSQL) |
-| **Deployment** | Replace database entirely | Add sidecar binary |
+### vs immudb / Amazon QLDB
+- No migration required - works with existing PostgreSQL
+- Same trust model (see Security Considerations below)
+- Significantly lower deployment cost
 
-**Witnz's Limitation:**
+### vs Hyperledger Fabric
+- 1000x lighter (~15MB vs multi-GB infrastructure)
+- Hours to deploy vs weeks/months
+- No blockchain complexity
 
-The current Raft-based implementation has a fundamental weakness: if the Raft leader is compromised, it can submit false hash values that followers will accept without verification. immudb does not have this limitation as it uses cryptographic proofs throughout.
+## Security Considerations
 
-**Future Direction:**
+### Raft Leader Compromise
 
-We are investigating external verification mechanisms to address this limitation while maintaining the lightweight, no-migration advantage.
+Witnz has a fundamental limitation: if a Raft leader node is compromised with **root access**, it can submit false hash values that followers will accept.
+
+**However, this requires:**
+- Root access to the leader node's server
+- Ability to modify the running binary or restart with a tampered version
+
+### The Same Applies to Other Solutions
+
+| Solution | Server Root Compromise |
+|----------|----------------------|
+| **Witnz** | Attacker can submit false hashes |
+| **immudb** | Attacker can submit false data and proofs |
+| **Amazon QLDB** | Attacker with AWS access can manipulate |
+| **Any software** | Root access = full control |
+
+**No software-only solution can protect against server root compromise.** This is a fundamental limitation shared by all database integrity tools, including immudb.
+
+The only theoretical protection is hardware-based root of trust (TPM, AWS Nitro Enclave, Intel SGX), which requires trusting the hardware vendor.
+
+### What Witnz Protects Against
+
+- Database administrator misconduct (without server root access)
+- SQL injection attacks modifying audit records
+- Direct database file tampering (detected via Merkle Root)
+- Application-level bugs causing unauthorized modifications
 
 ## CLI Commands
 
