@@ -100,18 +100,26 @@ type fsmSnapshot struct {
 }
 
 func (s *fsmSnapshot) Persist(sink raft.SnapshotSink) error {
-	defer sink.Close()
+	entries, err := s.storage.GetAllHashEntriesAllTables()
+	if err != nil {
+		sink.Cancel()
+		return fmt.Errorf("failed to get hash entries for snapshot: %w", err)
+	}
 
 	snapshot := struct {
 		HashEntries []storage.HashEntry `json:"hash_entries"`
 	}{
-		HashEntries: make([]storage.HashEntry, 0),
+		HashEntries: entries,
 	}
 
 	encoder := json.NewEncoder(sink)
 	if err := encoder.Encode(snapshot); err != nil {
 		sink.Cancel()
 		return fmt.Errorf("failed to encode snapshot: %w", err)
+	}
+
+	if err := sink.Close(); err != nil {
+		return fmt.Errorf("failed to close snapshot sink: %w", err)
 	}
 
 	return nil

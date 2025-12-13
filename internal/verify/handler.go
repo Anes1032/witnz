@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"time"
 
 	"github.com/witnz/witnz/internal/alert"
@@ -11,6 +12,8 @@ import (
 	"github.com/witnz/witnz/internal/hash"
 	"github.com/witnz/witnz/internal/storage"
 )
+
+var validTableName = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
 
 type TableConfig struct {
 	Name           string
@@ -37,6 +40,10 @@ func (h *HashChainHandler) SetAlertManager(am *alert.Manager) {
 }
 
 func (h *HashChainHandler) AddTable(config *TableConfig) error {
+	if !validTableName.MatchString(config.Name) {
+		return fmt.Errorf("invalid table name: %s", config.Name)
+	}
+
 	h.tableConfigs[config.Name] = config
 
 	latestEntry, err := h.storage.GetLatestHashEntry(config.Name)

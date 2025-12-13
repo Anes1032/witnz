@@ -3,6 +3,7 @@ package verify
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"sync"
 	"time"
 
@@ -10,6 +11,8 @@ import (
 	"github.com/witnz/witnz/internal/hash"
 	"github.com/witnz/witnz/internal/storage"
 )
+
+var validTableNameRegex = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
 
 type MerkleVerifier struct {
 	storage   *storage.Storage
@@ -29,10 +32,18 @@ func NewMerkleVerifier(store *storage.Storage, dbConnStr string) *MerkleVerifier
 	}
 }
 
-func (v *MerkleVerifier) AddTable(config *TableConfig) {
+func (v *MerkleVerifier) AddTable(config *TableConfig) error {
+	if !validTableNameRegex.MatchString(config.Name) {
+		return fmt.Errorf("invalid table name: %s", config.Name)
+	}
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	v.tables = append(v.tables, config)
+	return nil
+}
+
+func quoteIdentifier(name string) string {
+	return `"` + name + `"`
 }
 
 func (v *MerkleVerifier) Start(ctx context.Context) error {
@@ -159,7 +170,7 @@ func (v *MerkleVerifier) performDetailedVerification(ctx context.Context, tableN
 	}
 
 	dbRecordIDs := make(map[string]bool)
-	rows, err := conn.Query(ctx, fmt.Sprintf("SELECT id FROM %s", tableName))
+	rows, err := conn.Query(ctx, fmt.Sprintf("SELECT id FROM %s", quoteIdentifier(tableName)))
 	if err != nil {
 		return fmt.Errorf("failed to query IDs: %w", err)
 	}
@@ -263,7 +274,7 @@ func (v *MerkleVerifier) calculateCurrentMerkleRoot(ctx context.Context, tableNa
 	}
 	defer conn.Close(ctx)
 
-	rows, err := conn.Query(ctx, fmt.Sprintf("SELECT * FROM %s ORDER BY id", tableName))
+	rows, err := conn.Query(ctx, fmt.Sprintf("SELECT * FROM %s ORDER BY id", quoteIdentifier(tableName)))
 	if err != nil {
 		return "", 0, fmt.Errorf("failed to query table: %w", err)
 	}
@@ -381,7 +392,7 @@ func extractIDFromRecordID(recordID string) string {
 func (v *MerkleVerifier) getRecordFromDB(ctx context.Context, conn *pgx.Conn, tableName string, recordID string) (map[string]interface{}, error) {
 	id := extractIDFromRecordID(recordID)
 
-	query := fmt.Sprintf("SELECT * FROM %s WHERE id = $1", tableName)
+	query := fmt.Sprintf("SELECT * FROM %s WHERE id = $1", quoteIdentifier(tableName))
 
 	rows, err := conn.Query(ctx, query, id)
 	if err != nil {

@@ -228,3 +228,29 @@ func (s *Storage) GetAllHashEntries(tableName string) ([]*HashEntry, error) {
 
 	return entries, nil
 }
+
+func (s *Storage) GetAllHashEntriesAllTables() ([]HashEntry, error) {
+	entries := make([]HashEntry, 0)
+
+	err := s.db.View(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket(HashChainBucket)
+		if bucket == nil {
+			return nil
+		}
+
+		return bucket.ForEach(func(k, v []byte) error {
+			var entry HashEntry
+			if err := json.Unmarshal(v, &entry); err != nil {
+				return nil
+			}
+			entries = append(entries, entry)
+			return nil
+		})
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return entries, nil
+}

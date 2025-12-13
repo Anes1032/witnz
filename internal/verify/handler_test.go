@@ -162,3 +162,45 @@ func TestVerifyHashChain(t *testing.T) {
 		t.Errorf("VerifyHashChain failed: %v", err)
 	}
 }
+
+func TestAddTableValidation(t *testing.T) {
+	tmpfile, err := os.CreateTemp("", "witnz-verify-test-*.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tmpfile.Close()
+	defer os.Remove(tmpfile.Name())
+
+	store, err := storage.New(tmpfile.Name())
+	if err != nil {
+		t.Fatalf("Failed to create storage: %v", err)
+	}
+	defer store.Close()
+
+	handler := NewHashChainHandler(store)
+
+	tests := []struct {
+		name      string
+		tableName string
+		wantErr   bool
+	}{
+		{"valid_simple", "audit_logs", false},
+		{"valid_underscore", "_private_table", false},
+		{"valid_mixed", "Table_123", false},
+		{"invalid_sql_injection", "audit_logs; DROP TABLE users;--", true},
+		{"invalid_spaces", "audit logs", true},
+		{"invalid_quotes", `audit"logs`, true},
+		{"invalid_semicolon", "audit;logs", true},
+		{"invalid_dash", "audit-logs", true},
+		{"invalid_start_number", "123table", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := handler.AddTable(&TableConfig{Name: tt.tableName})
+			if (err != nil) != tt.wantErr {
+				t.Errorf("AddTable(%q) error = %v, wantErr %v", tt.tableName, err, tt.wantErr)
+			}
+		})
+	}
+}
