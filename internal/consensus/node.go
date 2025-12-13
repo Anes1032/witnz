@@ -209,3 +209,20 @@ func (n *Node) Stats() map[string]string {
 	}
 	return n.raft.Stats()
 }
+
+func (n *Node) TransferLeadership() error {
+	if n.raft == nil {
+		return fmt.Errorf("raft not initialized")
+	}
+
+	if n.raft.State() != raft.Leader {
+		return fmt.Errorf("not the leader, cannot transfer")
+	}
+
+	future := n.raft.LeadershipTransfer()
+	if err := future.Error(); err != nil {
+		return fmt.Errorf("leadership transfer failed: %w", err)
+	}
+
+	return nil
+}

@@ -1,608 +1,772 @@
-# Witnz - PostgreSQL Tamper Detection System
+# Witnz - Distributed Consensus Verification Platform
 
-## Project Overview
+**A new paradigm for distributed consensus verification powered by democratic majority vote.**
 
-Witnz is a distributed database tampering detection system for PostgreSQL that provides lightweight, blockchain-inspired tamper detection capabilities. The system is designed to detect internal fraud by database administrators and tampering during direct attacks on RDS, while being lighter-weight than solutions like Hyperledger and meeting audit requirements (SOC2, ISO27001) with minimal overhead.
+## What is Witnz?
 
-## Architecture
+Witnz is not just another security tool - it's a fundamental rethinking of how we verify consensus in distributed systems.
 
-### Core Components
+**Important Philosophical Note:**
+> Witnz does NOT claim to verify "truth." Witnz verifies **consensus** - what the majority of nodes agree upon. If 1,000,001 nodes report "X" and 1 node reports "Y", Witnz reports that 1,000,001 nodes agree on X. This is **probabilistic reliability**, not absolute truth.
 
-1. **Lightweight Node** (Go binary)
-   - Deployed as sidecar on each application server
-   - Maintains hash chains and performs mutual verification
-   - Single binary with no external dependencies
+**The Core Innovation:**
+- **Blockchain** uses **computation** to establish consensus → Heavy, slow, expensive
+- **Witnz** uses **numbers** (majority vote) to establish consensus → Lightweight, fast, cheap
 
-2. **Dashboard** (React + Go API)
-   - Management UI with monitoring capabilities
-   - Participates in consensus
-   - Alert management and visualization
+**The Architecture:**
+- **Phase 1 (Raft Feudalism)**: Fast internal consensus within your infrastructure
+- **Phase 2 (Witnz Democracy)**: External observer nodes verify consensus via majority vote
+- **Result**: Best of both worlds - speed + trustless verification
 
-3. **PostgreSQL Integration**
-   - Works with existing databases (RDS, Aurora, Cloud SQL, Supabase)
-   - No schema changes required
-   - Uses PostgreSQL Logical Replication for change detection
+## Beyond Security: A Platform for Distributed Consensus
 
-### Network Configuration
+PostgreSQL tampering detection is just the **first use case**. Witnz's lightweight architecture (15MB binary) enables countless applications:
 
-- VPN or private network deployment
-- P2P mutual verification between nodes
-- All nodes connect to the same PostgreSQL database
+- **Database Integrity**: PostgreSQL, MySQL, MongoDB tamper detection
+- **File Integrity**: S3, GCS, IPFS content verification
+- **Supply Chain**: End-to-end product traceability
+- **Voting Systems**: Transparent, verifiable elections
+- **IoT Data**: Sensor data integrity verification
+- **Scientific Research**: Reproducible research data
+- **NFT Metadata**: Permanent metadata persistence
 
-## Key Features
+## Proof of Observation (PoObs): A New Consensus Mechanism
 
-### Protection Modes
+Witnz introduces **Proof of Observation (PoObs)** - a novel consensus mechanism that proves what the majority of independent observers witnessed, not what is computationally proven.
 
-#### Append-only Mode
-For audit/history tables where past records must remain immutable.
+### How Proof of Observation Works
 
-**Use Cases:**
-- Change logs and audit trails
-- Contract history
-- Consent records
-- Transaction logs
+**Core Principle:**
+> PoObs does NOT prove "what is true"
+> PoObs proves "what was observed by the majority"
+
+**Example:**
+```
+1,000,001 observers report: "We observed value X"
+1 observer reports: "I observed value Y"
+
+PoObs Result: "1,000,001 observers agree on X"
+NOT: "X is the absolute truth"
+```
+
+**The Process:**
+1. Multiple independent observer nodes monitor the same data source
+2. Each observer reports what they witnessed (hash values)
+3. Observers compare their observations via majority vote
+4. Consensus is determined by what most observers agree upon
+5. No computation required - only observation and comparison
+
+### Comparison with Existing Consensus Mechanisms
+
+| Consensus Mechanism | What it proves | Resource cost | Attack vector | Barrier to entry |
+|-------------------|----------------|---------------|---------------|------------------|
+| **Proof of Work** | Most computation performed | Very high (mining hardware, electricity) | 51% hashrate | High (expensive equipment) |
+| **Proof of Stake** | Most stake locked | High (capital requirement) | 51% stake | High (capital) |
+| **Proof of Authority** | Trusted authority vouches | Low (trust-based) | Authority compromise | High (permission required) |
+| **Proof of Observation** | **Most observers agree** | **Minimal (15MB binary)** | **51% of observers** | **Low (anyone can run)** |
+
+### Why Proof of Observation is Revolutionary
+
+**Key Innovation:**
+- **Blockchain**: Security through computation → Expensive, slow, high barrier
+- **Witnz**: Security through numbers → Cheap, fast, accessible to everyone
+- Scales linearly: Add more observers = Higher security (no computation race)
+
+### Attack Resistance through Numbers
+
+**The Power of Observation:**
+- Deploy 3 Witnz Nodes → Attacker must compromise 2+ observers
+- Deploy 1,001 Witnz Nodes → Attacker must compromise 501+ observers
+- Deploy 1,000,001 Witnz Nodes → Attacker must compromise 500,001+ observers
+
+**Key Advantages:**
+- Geographic distribution across independent operators
+- Automatic node rotation prevents long-term compromise
+- Cost scales linearly with security level (add nodes, not computation)
+- No mining, no staking - just observation
+
+## Overview for PostgreSQL Use Case
+
+Witnz provides multi-layered protection for PostgreSQL databases, detecting internal fraud and tampering during direct attacks on databases (RDS, Aurora, Cloud SQL, Supabase).
+
+## Key Strengths
+
+### 🪶 Lightweight Sidecar Architecture
+- **Single binary (~15MB)** - Deploy as a sidecar to your application servers
+- **No complex setup** - Works with existing PostgreSQL databases
+- **Zero schema changes** - No modifications to your database required
+- **Minimal overhead** - Negligible impact on application performance
+
+### ⚡ Real-time Tamper Detection
+- **Instant detection** of unauthorized `UPDATE`/`DELETE` operations on append-only tables
+- **PostgreSQL Logical Replication** - Monitors all database changes in real-time
+- **Immediate alerts** - Get notified the moment tampering occurs
+
+### 🛡️ Fault-Tolerant & Tamper-Proof
+- **Hash-chain structure** - Ensures log immutability with cryptographic guarantees
+- **Raft Consensus** - Provides high availability and fault tolerance
+- **Multi-node verification** - Prevents single point of compromise
+- **Automatic leader election** - Continues operating even when nodes fail
+
+### 🔍 Deep Verification with Merkle Root
+- **Fast single-query verification** - Fetches all records in one DB query and compares Merkle Root checkpoints (500x faster than per-record verification)
+- **Identifies specific tampered records** - Merkle Tree traversal pinpoints exactly what was modified
+- **Catches offline modifications** - Detects direct database attacks and manual tampering
+- **Phantom insert detection** - Identifies records added outside the monitoring system
+- **Scalable performance** - Verifies millions of records in seconds
+
+## How It Works
+
+### Architecture Overview
+
+#### Phase 1: Raft Feudalism (Current)
+
+```mermaid
+graph TB
+    subgraph "Application Servers"
+        App1[App Server 1]
+        App2[App Server 2]
+        App3[App Server 3]
+    end
+
+    subgraph "Raft Nodes (Sidecar)"
+        Node1[Raft Node 1<br/>Leader]
+        Node2[Raft Node 2<br/>Follower]
+        Node3[Raft Node 3<br/>Follower]
+    end
+
+    subgraph "Storage"
+        PG[(PostgreSQL<br/>RDS/Aurora)]
+        DB1[(BoltDB 1)]
+        DB2[(BoltDB 2)]
+        DB3[(BoltDB 3)]
+    end
+
+    App1 -->|INSERT/UPDATE| PG
+    App2 -->|INSERT/UPDATE| PG
+    App3 -->|INSERT/UPDATE| PG
+
+    PG -->|Logical Replication| Node1
+    PG -->|Logical Replication| Node2
+    PG -->|Logical Replication| Node3
+
+    Node1 <-->|Raft Consensus| Node2
+    Node2 <-->|Raft Consensus| Node3
+    Node3 <-->|Raft Consensus| Node1
+
+    Node1 --> DB1
+    Node2 --> DB2
+    Node3 --> DB3
+```
+
+#### Phase 2: Witnz Democracy (Next)
+
+```mermaid
+graph TB
+    subgraph "Customer VPC"
+        subgraph "Application Servers"
+            App1[App Server 1]
+            App2[App Server 2]
+            App3[App Server 3]
+        end
+
+        subgraph "Raft Nodes (Internal Consensus)"
+            RN1[Raft Node 1<br/>Leader]
+            RN2[Raft Node 2<br/>Follower]
+            RN3[Raft Node 3<br/>Follower]
+        end
+
+        PG[(PostgreSQL<br/>RDS/Aurora)]
+    end
+
+    subgraph "External Witnz Network (Observer-only)"
+        WN1[Witnz Node 1<br/>US-East]
+        WN2[Witnz Node 2<br/>EU-West]
+        WN3[Witnz Node 3<br/>AP-Tokyo]
+    end
+
+    App1 -->|INSERT/UPDATE| PG
+    App2 -->|INSERT/UPDATE| PG
+    App3 -->|INSERT/UPDATE| PG
+
+    PG -->|Logical Replication| RN1
+    PG -->|Logical Replication| RN2
+    PG -->|Logical Replication| RN3
+
+    RN1 <-->|Raft Consensus<br/>Fast Feudalism| RN2
+    RN2 <-->|Raft Consensus| RN3
+    RN3 <-->|Raft Consensus| RN1
+
+    RN1 -.->|Hash-only<br/>Submission| WN1
+    RN1 -.->|Hash-only<br/>Submission| WN2
+    RN1 -.->|Hash-only<br/>Submission| WN3
+
+    RN2 -.->|Hash-only<br/>Submission| WN1
+    RN2 -.->|Hash-only<br/>Submission| WN2
+    RN2 -.->|Hash-only<br/>Submission| WN3
+
+    RN3 -.->|Hash-only<br/>Submission| WN1
+    RN3 -.->|Hash-only<br/>Submission| WN2
+    RN3 -.->|Hash-only<br/>Submission| WN3
+
+    WN1 -.->|Majority Vote<br/>Democracy| WN2
+    WN2 -.->|Majority Vote| WN3
+    WN3 -.->|Majority Vote| WN1
+
+    style WN1 fill:#e1f5ff
+    style WN2 fill:#e1f5ff
+    style WN3 fill:#e1f5ff
+```
+
+**Key Differences:**
+- **Raft Nodes (Customer VPC)**: Form internal Raft cluster, have voting rights, fast consensus
+- **Witnz Nodes (External)**: Observer-only, no voting rights, receive hash-only submissions
+- **Privacy**: Witnz Nodes never see raw data, only cryptographic hashes
+- **Consensus Verification**: If Raft Nodes submit different hashes → Majority vote detects tampering
+
+### Multi-Layered Protection
+
+Witnz provides **two layers** of tamper detection:
+
+#### Layer 1: Real-time CDC Monitoring (Immediate)
+- Monitors PostgreSQL Logical Replication stream
+- Detects `UPDATE`/`DELETE` operations **instantly**
+- Triggers immediate alerts
+- Prevents tampering that goes through normal database operations
+
+#### Layer 2: Merkle Root Verification (Periodic)
+- Periodically calculates Merkle Root of all table records with single DB query
+- Compares with stored Merkle Root checkpoint (instant comparison)
+- If mismatch detected, pinpoints specific tampered records via Merkle Tree traversal
+- Detects tampering that bypasses Logical Replication:
+  - Direct database file modifications
+  - Manual SQL executed while nodes were offline
+  - Database restores from tampered backups
+  - Phantom inserts (records added without INSERT operations)
+
+### Data Flow
+
+#### Write Flow
+
+```mermaid
+sequenceDiagram
+    participant App as Application
+    participant PG as PostgreSQL
+    participant CDC as Witnz CDC
+    participant Hash as Hash Chain
+    participant Raft as Raft Consensus
+    participant Storage as BoltDB
+
+    App->>PG: INSERT INTO audit_log
+    PG->>CDC: WAL Event (via Logical Replication)
+    CDC->>Hash: Calculate DataHash + ChainHash
+    Hash->>Raft: Propose Log Entry (if Leader)
+    Raft->>Storage: Commit Hash Entry
+    Note over Storage: Builds Merkle Tree checkpoint periodically
+```
+
+#### Real-time Tamper Detection
+
+```mermaid
+sequenceDiagram
+    participant Attacker as Attacker
+    participant PG as PostgreSQL
+    participant CDC as Witnz CDC
+    participant Alert as Alert System
+
+    Attacker->>PG: ❌ UPDATE audit_log SET ...
+    PG->>CDC: WAL Event (UPDATE detected)
+    CDC->>Alert: 🚨 TAMPERING DETECTED!
+    Note over Alert: Instant Slack/PagerDuty notification
+```
+
+#### Periodic Verification Flow (Merkle Root)
+
+```mermaid
+sequenceDiagram
+    participant Verifier as Merkle Verifier
+    participant Storage as BoltDB
+    participant PG as PostgreSQL
+
+    loop Every verify_interval
+        Verifier->>Storage: Get latest Merkle checkpoint
+        Verifier->>PG: SELECT * FROM table (single query)
+        PG->>Verifier: All current records
+        Verifier->>Verifier: Calculate current Merkle Root
+        alt Merkle Root matches checkpoint
+            Verifier->>Verifier: ✅ All records intact (instant comparison)
+            Verifier->>Storage: Create new checkpoint if needed
+        else Merkle Root mismatch
+            Verifier->>Verifier: 🔍 Traverse Merkle Tree to find tampered records
+            Verifier->>Verifier: ❌ Identify specific modified records
+        end
+    end
+```
+
+#### Witnz Democracy Verification Flow (Phase 2)
+
+```mermaid
+sequenceDiagram
+    participant Leader as Raft Leader
+    participant F1 as Raft Follower 1
+    participant F2 as Raft Follower 2
+    participant WN1 as Witnz Node 1<br/>(US-East)
+    participant WN2 as Witnz Node 2<br/>(EU-West)
+    participant WN3 as Witnz Node 3<br/>(AP-Tokyo)
+    participant Alert as Alert System
+
+    Note over Leader,F2: Raft Consensus (Internal)
+    Leader->>Leader: Calculate hash for seq=100
+    Leader->>F1: Replicate hash via Raft
+    Leader->>F2: Replicate hash via Raft
+    F1->>F1: Store hash locally
+    F2->>F2: Store hash locally
+
+    Note over Leader,WN3: Hash Submission (External)
+    Leader->>WN1: Submit (table, seq=100, hash=abc123)
+    Leader->>WN2: Submit (table, seq=100, hash=abc123)
+    Leader->>WN3: Submit (table, seq=100, hash=abc123)
+
+    F1->>WN1: Submit (table, seq=100, hash=abc123)
+    F1->>WN2: Submit (table, seq=100, hash=abc123)
+    F1->>WN3: Submit (table, seq=100, hash=abc123)
+
+    F2->>WN1: Submit (table, seq=100, hash=abc123)
+    F2->>WN2: Submit (table, seq=100, hash=abc123)
+    F2->>WN3: Submit (table, seq=100, hash=abc123)
+
+    Note over WN1,WN3: Majority Vote Verification
+    WN1->>WN1: Received 3 submissions: all hash=abc123
+    WN2->>WN2: Received 3 submissions: all hash=abc123
+    WN3->>WN3: Received 3 submissions: all hash=abc123
+
+    WN1->>WN2: Compare: hash=abc123 ✅
+    WN2->>WN3: Compare: hash=abc123 ✅
+    WN3->>WN1: Compare: hash=abc123 ✅
+
+    Note over WN1,WN3: ✅ Consensus: Majority agrees hash=abc123
+
+    rect rgb(255, 200, 200)
+        Note over Leader,Alert: Tampering Scenario (Leader Compromised)
+        Leader->>Leader: ⚠️ COMPROMISED: Calculate tampered hash
+        Leader->>WN1: Submit (seq=101, hash=TAMPERED)
+        F1->>WN1: Submit (seq=101, hash=abc456)
+        F2->>WN1: Submit (seq=101, hash=abc456)
+
+        WN1->>WN1: Compare hashes: MISMATCH detected!
+        WN1->>WN2: Alert: Inconsistency detected
+        WN1->>WN3: Alert: Inconsistency detected
+
+        WN1->>Alert: 🚨 LEADER COMPROMISE DETECTED<br/>2/3 nodes report hash=abc456<br/>1/3 nodes report hash=TAMPERED
+        Note over Alert: Witnz Democracy catches what Raft cannot!
+    end
+```
+
+**Key Points:**
+- **Raft Feudalism**: Fast internal consensus, but leader's values are trusted
+- **Witnz Democracy**: External observers detect when leader's hashes differ from followers
+- **Privacy**: Witnz Nodes only receive hashes, never raw database data
+- **Majority Vote**: If 2+ Raft Nodes report same hash, but leader differs → Tampering detected
+
+## Protection Capabilities
+
+### What Witnz Detects
+
+| Attack Scenario | Detection Method | Response Time |
+|----------------|------------------|---------------|
+| `UPDATE`/`DELETE` via SQL | Logical Replication | **Instant** |
+| Direct database file modification | Merkle Root verification | **Next verification cycle** |
+| Offline tampering (node down) | Merkle Root verification | **On next verification** |
+| Phantom inserts (bypass CDC) | Merkle Root verification | **Next verification cycle** |
+| Hash chain manipulation | Hash chain integrity check | **Instant** |
+| Record deletion | Merkle Root verification | **Next verification cycle** |
+
+### Use Cases
+
+**Audit & Compliance Tables** (Append-only)
 - Financial transaction logs
-- Healthcare access logs
+- User activity audit trails
+- Contract and consent records
+- Change history logs
+- Healthcare access logs (HIPAA)
+- System event logs (SOC2, ISO27001)
 
-**Guarantees:** Past records have not been tampered with
+## Quick Start
 
-**Behavior:**
-- Calculates hash on INSERT (Chain Hash + Data Hash)
-- Alerts on UPDATE/DELETE operations immediately
-- Maintains hash chain across all nodes via Raft consensus
-- Periodically creates Merkle Root checkpoints
-- Verifies integrity using fast O(1) Merkle Root comparison
-- Identifies specific tampered records via Merkle Tree traversal when needed
+### Prerequisites
 
-## Technology Stack
+- PostgreSQL 10+ with Logical Replication enabled
+- Network connectivity between witnz nodes (VPN/private network recommended)
+- Linux/macOS server (amd64 or arm64)
 
-| Layer | Technology | Rationale |
-|-------|-----------|-----------|
-| Lightweight Node | Go | Single binary, easy cross-compilation |
-| DB Change Detection | PostgreSQL Logical Replication | Standard feature, low overhead |
-| Consensus | Raft | Lightweight, easy implementation, sufficient fault tolerance |
-| Local Storage | BoltDB | Embeddable, no additional infrastructure |
-| Hash Structure | Merkle Tree | Efficient integrity verification, diff identification |
-| Inter-node Communication | gRPC | High performance, type-safe |
-| Dashboard | React + Go API | Modern UI, integrates with node binary |
-
-### Key Dependencies
-
-- `hashicorp/raft` - Distributed consensus
-- `jackc/pglogrepl` - PostgreSQL Logical Replication
-- `jackc/pgx/v5` - PostgreSQL driver
-- `etcd-io/bbolt` - Local KV store (Raft log + hash storage)
-- `grpc/grpc-go` - Inter-node communication
-- `spf13/cobra` + `viper` - CLI + configuration management
-
-## Project Structure
-
-```
-witnz/
-├── cmd/witnz/main.go           # CLI entry point
-├── internal/
-│   ├── cdc/                    # PostgreSQL CDC integration
-│   ├── consensus/              # Raft consensus implementation
-│   ├── hash/                   # HashChain, MerkleTree algorithms
-│   ├── storage/                # BoltDB storage layer
-│   ├── verify/                 # Verification logic
-│   └── config/                 # Configuration management
-├── proto/                      # gRPC definitions
-├── deploy/                     # Docker, Kubernetes manifests
-└── doc/                        # Documentation
-```
-
-## Data Flow
-
-### Write Flow
-
-1. Application performs INSERT/UPDATE/DELETE to PostgreSQL
-2. Changes propagate to local node via Logical Replication
-3. Node calculates hashes:
-   - Chain Hash: SHA256(previous_hash + data) for sequential integrity
-   - Data Hash: SHA256(data) for Merkle Tree construction
-4. Propagates and reaches consensus with other nodes via Raft
-5. Each node saves hash chain to local storage
-6. Periodically creates Merkle Root checkpoints (every 24 hours)
-
-### Verification Flow
-
-1. Periodic or on-demand verification triggered
-2. Fast path: Compares current Merkle Root with stored checkpoint (O(1))
-3. If Merkle Root matches: All records verified in milliseconds
-4. If Merkle Root mismatch:
-   - Retrieves target data from PostgreSQL
-   - Traverses Merkle Tree to identify tampered records (O(log n))
-   - Identifies specific modified, deleted, or phantom inserted records
-5. Triggers alerts for any tampering detected
-
-## CLI Commands
+### Installation
 
 ```bash
-witnz init                              # Initialize, create Publication/Slot
-witnz start                             # Start node
-witnz status                            # Display cluster status
-witnz verify [table]                    # Execute immediate Merkle Root verification
+# Linux (amd64)
+curl -sSL https://github.com/Anes1032/witnz/releases/latest/download/witnz-linux-amd64 -o /usr/local/bin/witnz
+chmod +x /usr/local/bin/witnz
+
+# macOS (arm64)
+curl -sSL https://github.com/Anes1032/witnz/releases/latest/download/witnz-darwin-arm64 -o /usr/local/bin/witnz
+chmod +x /usr/local/bin/witnz
+
+# Verify installation
+witnz version
 ```
 
-## Configuration
+### Configuration
 
-Configuration is managed via YAML file (`witnz-node1.yaml` for bootstrap, `witnz-node2.yaml`, `witnz-node3.yaml` for followers):
+Create `witnz.yaml`:
 
-**Bootstrap Node (node1):**
 ```yaml
 database:
-  host: localhost
+  host: your-rds-endpoint.amazonaws.com
   port: 5432
-  database: mydb
-  user: witnz
-  password: secret
+  database: production
+  user: witnz_user
+  password: ${WITNZ_DB_PASSWORD}
 
 node:
   id: node1
-  bind_addr: node1:7000        # Use hostname, not 0.0.0.0 (Raft requirement)
+  bind_addr: node1:7000        # Use hostname for Raft
   grpc_addr: 0.0.0.0:8000
-  data_dir: /data
-  bootstrap: true              # Only one node should be bootstrap
-  peer_addrs:                  # Map format: {node_id: address}
+  data_dir: /var/lib/witnz
+  bootstrap: true              # Only one node should bootstrap
+  peer_addrs:
     node2: node2:7000
     node3: node3:7000
 
 protected_tables:
-  - name: audit_log
-    verify_interval: 30m
+  - name: audit_logs
+    verify_interval: 30m       # Periodic Merkle Root verification
+
   - name: financial_transactions
     verify_interval: 10m
 
 alerts:
   enabled: true
-  slack_webhook: https://hooks.slack.com/...
+  slack_webhook: ${SLACK_WEBHOOK_URL}
 ```
 
-**Follower Nodes (node2, node3):**
-```yaml
-database:
-  host: localhost
-  port: 5432
-  database: mydb
-  user: witnz
-  password: secret
+### PostgreSQL Setup
 
+Enable Logical Replication:
+
+```sql
+-- Check current setting
+SHOW wal_level;  -- Should be 'logical'
+
+-- If not, update postgresql.conf:
+-- wal_level = logical
+-- max_replication_slots = 10
+-- max_wal_senders = 10
+-- Then restart PostgreSQL
+
+-- Create witnz user with required permissions
+CREATE USER witnz WITH REPLICATION PASSWORD 'secure_password';
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO witnz;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO witnz;
+```
+
+### Start Witnz
+
+```bash
+# Initialize replication slot and publication
+witnz init --config witnz.yaml
+
+# Start the node
+witnz start --config witnz.yaml
+
+# Check status
+witnz status --config witnz.yaml
+
+# Manual verification trigger
+witnz verify --config witnz.yaml
+```
+
+## Production Deployment
+
+### Multi-Node Setup
+
+Deploy at least **3 nodes** for fault tolerance:
+
+**Node 1 (Bootstrap):**
+```yaml
 node:
-  id: node2                    # Change to node3 for third node
-  bind_addr: node2:7000        # Change to node3:7000 for third node
-  grpc_addr: 0.0.0.0:8000
-  data_dir: /data
-  bootstrap: false             # Followers are NOT bootstrap
+  id: node1
+  bootstrap: true
+  bind_addr: node1:7000
+  peer_addrs:
+    node2: node2:7000
+    node3: node3:7000
+```
+
+**Node 2 & 3 (Followers):**
+```yaml
+node:
+  id: node2              # Change to node3 for third node
+  bootstrap: false
+  bind_addr: node2:7000  # Change to node3:7000
   peer_addrs:
     node1: node1:7000
-    node3: node3:7000          # Adjust peer list for each node
-
-protected_tables:
-  - name: audit_log
-    verify_interval: 30m
-  - name: financial_transactions
-    verify_interval: 10m
-
-alerts:
-  enabled: true
-  slack_webhook: https://hooks.slack.com/...
+    node3: node3:7000    # Adjust peers for each node
 ```
 
-## Development Guidelines
-
-### Code Style
-
-- **Language:** All code, comments, and documentation must be in English
-- **Comments:** Keep code comments to an absolute minimum
-  - Code should be self-documenting with clear variable and function names
-  - Only add comments for complex algorithms or non-obvious business logic
-  - Prefer extracting complex logic into well-named functions over adding explanatory comments
-- **Go Conventions:** Follow standard Go idioms and best practices
-- **Error Handling:** Use explicit error returns, avoid panics in library code
-- **Testing:** Write table-driven tests, aim for high coverage on critical paths
-
-### Architecture Principles
-
-- **Single Binary:** The entire node must compile to a single executable
-- **Zero Schema Changes:** No modifications to user's PostgreSQL schema
-- **Minimal Dependencies:** Prefer standard library, carefully evaluate external dependencies
-- **Cloud Agnostic:** Support all major PostgreSQL hosting platforms
-- **Low Overhead:** Minimize performance impact on application database
-
-### Security Considerations
-
-- External anchor support (S3 Object Lock, public blockchain) for enhanced proof
-- HSM usage and key rotation for secret key protection
-- Multi-node consensus prevents single point of compromise
-- All inter-node communication must be authenticated and encrypted
-
-## Development Phases
-
-### ✅ Phase 1: MVP (COMPLETED - v0.1.*)
-
-#### Core Infrastructure ✅
-- ✅ Single binary Go implementation (~17MB)
-- ✅ Configuration management (YAML + environment variables)
-- ✅ BoltDB embedded storage for hash chains
-- ✅ SHA256 hash algorithms (HashChain, MerkleTree)
-
-#### Database Integration ✅
-- ✅ PostgreSQL CDC via Logical Replication (pglogrepl)
-- ✅ Automatic publication/slot creation and management
-- ✅ Real-time change event processing
-- ✅ Support for RDS, Aurora, Cloud SQL, Supabase
-
-#### Protection Modes ✅
-- ✅ **Append-only Mode**: Immediate UPDATE/DELETE detection with alerts
-- ✅ **Merkle Root Verification**: Periodic O(1) verification with tampering detection and specific record identification
-
-#### Distributed Consensus ✅
-- ✅ Raft consensus implementation (hashicorp/raft)
-- ✅ Multi-node hash chain replication
-- ✅ Leader election and automatic failover
-- ✅ Bootstrap-based cluster formation
-- ✅ Snapshot persistence and restore
-- ✅ 3-node cluster tested and verified
-
-#### Alert System ✅
-- ✅ Slack webhook integration
-- ✅ Tampering detection alerts (append-only)
-- ✅ Merkle Root mismatch alerts
-- ✅ Hash chain integrity violation alerts
-- ✅ Phantom insert detection alerts
-
-#### Testing ✅
-- ✅ Unit tests (40%+ coverage)
-- ✅ Integration tests (append-only mode)
-- ✅ Integration tests (Merkle Root verification)
-- ✅ Multi-node cluster tests with Docker Compose
-- ✅ Phantom insert detection tests
-- ✅ Offline tampering detection tests
-
-#### CLI & Operations ✅
-- ✅ `witnz init` - Initialize replication slot and publication
-- ✅ `witnz start` - Start node with cluster support
-- ✅ `witnz status` - Display node and cluster status
-- ✅ `witnz verify` - Manual verification trigger
-- ✅ Graceful shutdown with cleanup
-
-### 📋 Phase 1.5: MVP Remaining Items (HIGH PRIORITY)
-
-**Goal**: Complete critical Raft cluster tampering detection and recovery features before moving to Witnz architecture.
-
-#### Raft Node Tampering Detection & Recovery
-- [ ] **Raft Node Tampering Detection**
-  - Detect when a Raft Node's hash chain becomes inconsistent with cluster consensus
-  - Alert when tampering is detected on any Raft Node
-  - Log tampering events with node ID, table name, sequence number
-
-- [ ] **Automatic Raft Node Shutdown on Tampering**
-  - Automatically stop compromised Raft Node to prevent further damage
-  - Implement graceful shutdown with alert notification
-  - Prevent compromised node from participating in consensus
-
-- [ ] **Leader Rotation via Voting**
-  - Implement periodic leader rotation mechanism
-  - Force leader step-down after configurable interval (e.g., 24 hours)
-  - Trigger new leader election via Raft voting
-  - Configuration: `raft.leader_rotation_interval`
-
-- [ ] **Leader Change on Leader Node Tampering**
-  - Detect tampering on current leader node
-  - Immediately trigger leader step-down
-  - Force follower nodes to elect new leader
-  - Ensure cluster continues operating with new leader
-
-### 📋 Phase 2: Witnz Architecture Core Implementation (CURRENT FOCUS)
-
-**Goal**: Implement the revolutionary Witnz Node architecture that establishes absolute technical superiority. Focus ONLY on the core Zero-Trust architecture without SaaS features.
-
-**Scope**: Single-region Witnz Node PoC + External Anchoring. Multi-region deployment and auto-rotation deferred to Phase 4.
-
-**Terminology**:
-- **Raft Node**: Customer-operated node in their VPC (forms Raft cluster, has voting rights)
-- **Witnz Node**: External monitoring node operated by Witnz Cloud (observer-only, no voting rights)
-
-#### Priority 1: Witnz Node Architecture (Observer-only, No Voting Rights) 🔥 (REVOLUTIONARY)
-
-**This is what sets Witnz apart from ALL competitors. No other solution has external monitoring nodes with mutual distrust.**
-
-##### Witnz Node Core Implementation
-- [ ] **Witnz Node Role Implementation**
-  - Witnz Nodes do NOT have Raft voting rights (Observer role only)
-  - Raft Nodes (customer): Form 3-5 node Raft cluster, vote, achieve consensus in customer VPC
-  - Witnz Nodes (external): Receive hashes from Raft Nodes, store, monitor, alert
-  - No cross-region Raft consensus needed (Raft cluster stays in customer VPC)
-  - Configuration: `node.role: raft | witnz`
-
-- [ ] **Hash Submission Protocol (gRPC)**
-  - Raft Nodes: After achieving Raft consensus, submit `(record_id, chain_hash, data_hash, merkle_root)` to configured Witnz Node
-  - Witnz Node: Verify Ed25519 signature, store in local BoltDB, detect inconsistencies
-  - gRPC endpoint: `WitnzService.SubmitCheckpoint()`
-  - Authentication: Ed25519 signature per customer to prevent tampering
-  - Configuration: Customer Raft Nodes specify `witnz_node: witnz-node-1:9000`
-
-- [ ] **Single Witnz Node PoC**
-  - Deploy single Witnz Node for proof of concept
-  - Test hash-only submission from customer Raft Nodes
-  - Verify inconsistency detection works
-  - Multi-region deployment deferred to Phase 4
-
-##### Data Masking for Witnz Nodes (Hash-only Mode)
-- [ ] **Hash-only Submission Protocol**
-  - Raft Nodes: Calculate `chain_hash` and `data_hash` from raw database records
-  - Witnz Node: Receives only hashes, never sees raw data or connects to customer database
-  - Privacy-preserving: Customer data never leaves customer VPC
-  - Witnz Node can still detect tampering via hash verification
-
-- [ ] **Inconsistency Detection**
-  - Witnz Node receives checkpoints from multiple customer Raft Nodes
-  - If same `(table, sequence_num)` has different `merkle_root` from different Raft Nodes → Alert tampering
-  - Alert channel: Slack, PagerDuty, or customer webhook
-  - Configuration: `witnz.inconsistency_alert_threshold`
-
-#### Priority 2: External Anchoring (Tamper-proof External Proof) 🔥 (CRITICAL)
-
-**Defeats "all nodes compromised" scenario. This + Witnz Nodes = unbreakable.**
-
-##### S3 Object Lock Integration
-- [ ] **S3 Anchor Implementation**
-  - Create `S3Anchor` struct with AWS SDK v2
-  - Upload Merkle Root checkpoints to S3 with Object Lock (WORM)
-  - Set retention period (e.g., 10 years) for compliance
-  - Configuration: `anchoring.s3.bucket`, `anchoring.s3.interval` (default: 24h)
-
-- [ ] **Automatic Periodic Anchoring**
-  - Background goroutine uploads checkpoints every 24 hours
-  - Batch multiple tables into single S3 object (cost optimization)
-  - Include metadata: timestamp, table name, record count, node IDs
-  - Retry logic with exponential backoff on S3 errors
-
-- [ ] **Verification Against S3 Anchors**
-  - `witnz verify --check-anchor` command
-  - Fetch latest S3 checkpoint and compare with local Merkle Root
-  - Alert if mismatch detected (all-node tampering scenario)
-  - Generate compliance report with S3 proof
-
-##### Blockchain Anchoring (Optional)
-- [ ] **Ethereum Smart Contract**
-  - Deploy simple contract: `function anchorHash(bytes32 merkleRoot, uint256 timestamp)`
-  - Batch multiple checkpoints into single transaction (gas optimization)
-  - Store transaction hash in BoltDB for verification
-  - Configuration: `anchoring.blockchain.enabled`, `anchoring.blockchain.network`
-
-- [ ] **Public Verification**
-  - Generate Etherscan link for each anchored checkpoint
-  - Allow anyone to verify Merkle Root on blockchain
-  - Create compliance report generator for auditors
-  - Cost estimation tool (gas price × frequency)
-
-### 📋 Phase 3: Performance Optimization & Basic Operations
-
-**Goal**: Optimize performance for production workloads and add minimal operational capabilities.
-
-#### Performance Optimizations 🚀
-
-##### Incremental Merkle Tree
-- [ ] **Avoid Full Table Scan on Every Verification**
-  - Cache Merkle Tree structure in BoltDB
-  - On INSERT: Update only affected branch (O(log n) instead of O(n))
-  - Store intermediate nodes: `merkle_tree_{table}` bucket
-  - Rebuild full tree periodically (e.g., every 1000 inserts) to prevent drift
-
-- [ ] **Billion-Record Support**
-  - Test with 1 billion record table
-  - Target: <10 seconds for verification (currently ~20 seconds per million)
-  - Memory-efficient streaming: Process records in 10,000 record batches
-  - Benchmark and document performance characteristics
-
-##### CDC Batch Processing
-- [ ] **Buffer CDC Events**
-  - Accumulate up to 100 INSERT events before submitting to Raft
-  - Configurable: `cdc.batch_size`, `cdc.batch_timeout` (default: 100ms)
-  - Single Raft log entry for batch (reduce consensus overhead)
-  - Trade-off: Slightly delayed detection (100ms) for 10x throughput
-
-#### Basic Operational Essentials 🟡
-
-##### Basic Reliability
-- [ ] **CDC Reconnection**
-  - Exponential backoff retry on PostgreSQL disconnect
-  - Persist LSN for resume after restart
-
-- [ ] **Raft Snapshot Rotation**
-  - Keep last 3 snapshots, delete older ones
-  - Automatic snapshot every 10,000 entries
-
-##### Basic Observability
-- [ ] **Health Check Endpoint**
-  - `GET /healthz` returns 200 if process running
-  - `GET /readyz` returns 200 if Raft + CDC connected
-
-- [ ] **Basic Logging**
-  - Replace `fmt.Printf` with `slog` for structured logs
-  - Configurable log level (debug, info, warn, error)
-
-### 📋 Phase 4: SaaS Platform & Enterprise Features
-
-**Goal**: Build Witnz-as-a-Service (WaaS) platform for managed Witnz nodes, multi-tenant support, and enterprise compliance features.
-
-#### Multi-region Witnz Nodes & Advanced Features
-
-##### Multi-region Witnz Node Deployment
-- [ ] **Geographic Distribution**
-  - Deploy Witnz Nodes across 3+ regions (US-East, EU-West, AP-Tokyo)
-  - Each Witnz Node is independent (no Raft between them)
-  - Geographic diversity prevents single-region attacks
-  - Test with AWS/GCP/Azure multi-region setup
-
-##### Witnz Node Rotation & Long-term Attack Prevention
-- [ ] **Witnz Pool Management**
-  - Create pool of N Witnz Nodes (e.g., 10 nodes across 3 regions: US, EU, AP)
-  - Maintain minimum M active Witnz Nodes (e.g., 4) per customer
-  - Implement `WitnzRotator` for periodic node replacement
-  - Configuration: `witnz.pool_size`, `witnz.active_count`, `witnz.rotation_interval`
-
-- [ ] **Automated Rolling Rotation**
-  - Every 7 days, replace 1 Witnz Node with fresh node from pool
-  - No Raft membership change needed (Witnz Nodes are not Raft voters)
-  - Update customer's `witnz_nodes` configuration via dashboard
-  - Old Witnz Node archives data and shuts down gracefully
-  - Log rotation events for audit trail
-
-- [ ] **Attack Resistance Testing**
-  - Simulate scenario: Attacker compromises Witnz Node on Day 1
-  - Verify: Node is automatically rotated out by Day 7
-  - Test: New Witnz Node can still verify integrity from S3/Blockchain anchors
-  - Document rotation strategy in security whitepaper
-
-#### Witnz-as-a-Service (WaaS) Platform
-- [ ] **Managed Witnz Node Infrastructure**
-  - Multi-region Witnz node deployment (US, EU, AP)
-  - Automated Witnz node provisioning and lifecycle management
-  - Customer Raft node registration API
-  - Witnz node health monitoring and auto-recovery
-
-- [ ] **Public Audit Log**
-  - Public HTTP endpoint for Merkle Root checkpoints
-  - Customer-specific audit log URLs (https://audit.witnz.io/{customer}/table)
-  - JSON API for programmatic verification
-  - Timestamped proof generation for compliance
-
-- [ ] **Witnz Node Marketplace** (Optional)
-  - Allow third-party organizations to run Witnz nodes
-  - Trust scoring for Witnz node providers
-  - Decentralized Witnz network
-
-#### SaaS Multi-tenant Platform
-- [ ] **Multi-tenant Architecture**
-  - Customer isolation and resource quotas
-  - Per-customer Raft cluster management
-  - Centralized control plane for customer management
-  - Customer-specific configuration and policies
-
-- [ ] **Billing & Subscription Management**
-  - Stripe integration for payment processing
-  - Tiered pricing (Free, Standard, Enterprise)
-  - Usage-based billing (tables, verification frequency, witness nodes)
-  - Invoice generation and tax handling
-
-- [ ] **Customer Dashboard (Web UI)**
-  - Customer portal for cluster management
-  - Real-time cluster topology visualization
-  - Hash chain explorer with search
-  - Verification history and alerts
-  - Witness node configuration
-  - Billing and subscription management
-
-- [ ] **gRPC Management API**
-  - Remote cluster configuration
-  - Centralized verification triggers
-  - Customer-specific alert routing
-  - Witnz node management API
-
-#### Security & Compliance
-- [ ] **TLS/mTLS for Inter-node Communication**
-  - Certificate-based authentication
-  - Automatic certificate rotation
-  - mTLS for Raft node-to-Witnz node communication
-
-- [ ] **Encryption at Rest**
-  - BoltDB encryption (AES-256)
-  - Key management with HSM support
-  - Customer-managed encryption keys (CMEK)
-
-- [ ] **RBAC (Role-Based Access Control)**
-  - User roles (Admin, Operator, Viewer)
-  - Fine-grained permissions for API/UI
-  - Audit logging (WHO did WHAT, WHEN)
-
-- [ ] **Compliance & Certifications**
-  - SOC2 Type II compliance documentation
-  - ISO27001 compliance preparation
-  - GDPR compliance (data residency, right to deletion)
-  - HIPAA compliance features (BAA support)
-
-#### Management & Tooling
-- [ ] **Infrastructure as Code**
-  - Kubernetes Operator for automated deployment
-  - Helm charts for easy installation
-  - Terraform Provider for infrastructure provisioning
-
-- [ ] **Backup & Disaster Recovery**
-  - Automated BoltDB backup to S3
-  - Cross-region backup replication
-  - Point-in-time recovery
-  - Disaster recovery runbooks
-
-- [ ] **Migration & Upgrade Tools**
-  - Zero-downtime rolling upgrades
-  - Version compatibility matrix
-  - Automated migration scripts
-  - Rollback procedures
-
-#### Enterprise Features
-- [ ] **Private Witnz Nodes**
-  - Customer-dedicated Witnz nodes (VPC peering)
-  - On-premise Witnz node support
-  - Custom Witnz rotation policies
-
-- [ ] **Advanced Alerting**
-  - Integration with enterprise monitoring (DataDog, New Relic)
-  - Custom alert rules and thresholds
-  - Alert aggregation and reporting
-  - SLA monitoring and reporting
-
-- [ ] **Professional Services**
-  - Architecture consulting
-  - Custom integration development
-  - Training and documentation
-  - 24/7 support (Enterprise tier)
-
-## Competitive Differentiation
-
-- **vs Hyperledger Fabric:** Much lighter weight, single binary deployment
-- **vs immudb:** Uses existing PostgreSQL, no migration needed
-- **vs Amazon QLDB:** Cloud-agnostic with distributed verification
-- **vs pgaudit + S3:** Includes distributed verification and consensus
-- **vs ScalarDL:** Open source and startup-friendly
-
-## Testing Strategy
-
-- Unit tests for hash algorithms, storage layer, configuration parsing
-- Integration tests for PostgreSQL replication, Raft consensus
-- End-to-end tests for tampering detection scenarios
-- Performance benchmarks for hash calculation and verification overhead
-
-## Common Patterns
-
-- Use context.Context for cancellation and timeouts
-- Log errors with structured logging (consider `slog`)
-- Configuration via `viper`, CLI via `cobra`
-- gRPC for all inter-node communication
-- BoltDB transactions for atomic state updates
-
-## Development Environment
-
-### Docker-based Development Setup
-
-Use Docker Compose to create a local development environment with networked containers:
-
-**Components:**
-- PostgreSQL container with Logical Replication enabled
-- Multiple witnz node containers (node1, node2, node3) for testing distributed consensus
-- Shared Docker network for inter-node communication
-
-**Setup:**
+### Systemd Service
+
+Create `/etc/systemd/system/witnz.service`:
+
+```ini
+[Unit]
+Description=Witnz PostgreSQL Tamper Detection
+After=network.target
+
+[Service]
+Type=simple
+User=witnz
+Group=witnz
+ExecStart=/usr/local/bin/witnz start --config /etc/witnz/witnz.yaml
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start:
 ```bash
-docker-compose up -d          # Start development environment
-docker-compose logs -f node1  # View node logs
-docker-compose down           # Stop environment
+sudo systemctl daemon-reload
+sudo systemctl enable witnz
+sudo systemctl start witnz
+sudo systemctl status witnz
 ```
 
-**Key Configuration:**
-- PostgreSQL with `wal_level=logical` for replication
-- Each node has its own volume for BoltDB storage
-- Nodes communicate via Docker network (e.g., node1:7000)
-- Expose PostgreSQL (5432) and node ports for local access
+## Development
+
+### Local Development with Docker
+
+```bash
+# Clone repository
+git clone https://github.com/Anes1032/witnz.git
+cd witnz
+
+# Start PostgreSQL + 3 witnz nodes
+docker-compose up -d
+```
+
+### Building from Source
+
+```bash
+# Build single binary
+make build
+
+# Build for all platforms
+make release
+
+# Run Unit tests
+make test
+```
+
+### Integration test
+
+```bash
+# WAL test
+make test-integration
+
+
+# Merkle tree test
+make test-verify
+```
+
+## CLI Commands
+
+```bash
+witnz init       # Initialize replication slot and publication
+witnz start      # Start the node
+witnz status     # Display node and cluster status
+witnz verify     # Trigger immediate verification
+witnz version    # Show version information
+```
+
+## Current Status
+
+**v0.1.0 - MVP Released** ✅
+
+Witnz has completed its MVP phase with core Raft Feudalism implementation:
+
+### ✅ Phase 1: Raft Feudalism (COMPLETED)
+- **Append-only Mode**: Real-time UPDATE/DELETE detection via PostgreSQL Logical Replication
+- **Merkle Root Verification**: Periodic integrity checks with specific tampered record identification
+- **Distributed Consensus**: 3-node Raft cluster with automatic failover
+- **Leadership Transfer**: Periodic leader rotation to prevent long-term compromise
+- **Follower Verification**: Auto-shutdown on inconsistency detection
+- **Multi-platform Support**: Single binary for Linux, macOS, Windows (amd64/arm64)
+- **Alert System**: Slack webhook integration for tampering alerts
+
+### 🔥 Phase 2: Witnz Democracy - The Core Innovation (IN PROGRESS)
+
+**Goal**: Prove the revolutionary concept - democratic consensus verification via lightweight external observers.
+
+**Core Features**:
+- External Witnz Nodes verify Raft consensus via majority vote
+- Hash-only mode (privacy-preserving - no raw data access)
+- Inconsistency detection catches leader compromise
+- Single-region PoC (multi-region deployment in Phase 4)
+
+**Scope**:
+- ✅ Single Witnz Node PoC
+- ✅ Hash submission protocol (gRPC)
+- ✅ Majority vote verification logic
+- ❌ External Anchoring (deferred to Phase 3)
+- ❌ Multi-region deployment (deferred to Phase 4)
+
+### 📈 Phase 3: Operational Hardening & External Insurance (PLANNED)
+
+**Goal**: Production-ready performance and external anchoring as insurance.
+
+**External Anchoring**:
+- S3 Object Lock: Immutable checkpoints (~$0.001/year)
+- Blockchain (optional): Ethereum/Bitcoin for compliance
+- Purpose: Insurance against all-node compromise
+
+**Performance**:
+- Incremental Merkle Tree (billion-record support)
+- CDC batch processing (10x throughput)
+- Health checks, structured logging, CDC reconnection
+
+### 🌐 Phase 4: Public Witnz Network with Token Economics (PLANNED)
+
+**Goal**: Global public participation via token incentives (blockchain's best part) without computational waste (blockchain's worst part).
+
+**Vision**: Anyone downloads 15MB binary, observes, earns tokens - no mining, no staking, no capital barrier.
+
+**Token Economics**:
+- Rewards: Observation, consistency bonus, uptime, geographic diversity
+- Utility: Governance voting, optional staking, customer payments
+- Anti-Sybil: Reputation system, burn mechanism for false observations
+
+**Network**:
+- Multi-region observer pool with automated rotation
+- Public audit log API (`audit.witnz.io/{customer}/table`)
+- Open-source observer client for full transparency
+
+## Architecture & Technology
+
+### Tech Stack
+
+| Component | Technology | Purpose |
+|-----------|-----------|---------|
+| Language | Go | Single binary, easy deployment |
+| CDC | PostgreSQL Logical Replication | Real-time change detection |
+| Consensus | Raft (hashicorp/raft) | Distributed consensus |
+| Storage | BoltDB (bbolt) | Embedded key-value store |
+| Hash | SHA256 | Cryptographic integrity |
+| Alerts | Slack webhooks | Instant notifications |
+
+### Why Witnz?
+
+#### Paradigm Shift: Computation vs Numbers
+
+| Aspect | Blockchain | Traditional Audit | Witnz |
+|--------|-----------|------------------|-------|
+| **Consensus Mechanism** | Computational proof | Central authority | Democratic majority vote |
+| **Resource Requirements** | Massive (mining, nodes) | Moderate (log storage) | Minimal (15MB binary) |
+| **Barrier to Entry** | High (cost, expertise) | Medium (infrastructure) | Low (anyone can run) |
+| **Tamper Resistance** | Computation cost | Single point of trust | Number of compromised nodes |
+| **Speed** | Slow (block time) | Fast (no consensus) | Fast (Raft) + Trustless (Democracy) |
+| **Decentralization** | Yes (via computation) | No (centralized) | Yes (via numbers) |
+| **Attack Cost** | Computational power | Compromise central authority | Compromise majority of nodes |
+| **Use Cases** | Cryptocurrency, DeFi | Compliance logging | Any distributed consensus verification |
+
+#### Competitive Advantages
+
+**vs Hyperledger Fabric**
+- 1000x lighter weight (15MB vs multi-GB)
+- Single binary deployment vs complex orchestration
+- Democratic verification vs computational consensus
+
+**vs immudb**
+- Uses existing PostgreSQL infrastructure
+- External Witnz Nodes provide zero-trust verification
+- True decentralization via lightweight participation
+
+**vs Amazon QLDB**
+- Cloud-agnostic, works with any PostgreSQL hosting
+- Self-hosted, no vendor lock-in
+- Public Witnz Network for community verification
+
+**vs pgaudit + S3**
+- Distributed democratic verification (not just logging)
+- Real-time tamper detection and alerting
+- External observer nodes for trustless verification
+
+**vs Blockchain (Bitcoin, Ethereum)**
+- No computational waste (energy efficiency)
+- Linear cost scaling (add nodes, not computation)
+- Fast consensus for operational data
+- Accessible to everyone (15MB binary, no mining)
+
+## Consensus Verification Guarantees
+
+**Witnz is a distributed consensus verification platform, not a traditional security tool.** Witnz does not claim to verify "truth" - it verifies **what the majority of nodes agree upon**. This is probabilistic reliability through democratic consensus, not absolute truth.
+
+### Phase 1 (Raft Feudalism) Guarantees
+
+**What Raft guarantees:**
+- Hash chain length is consistent across nodes (term magnitude)
+- Fast internal consensus within your infrastructure
+- Automatic recovery from node failures
+
+**What Raft does NOT guarantee:**
+- Leader's hash values are correct (leader compromise undetectable)
+- This is intentional - feudalism prioritizes speed over verification
+
+### Phase 2 (Witnz Democracy) Guarantees
+
+**What Witnz Democracy adds:**
+- External observer nodes verify hash values via majority vote
+- Detects leader compromise that Raft cannot catch
+- Zero-trust verification layer (mutual distrust between observers)
+- Attack resistance scales with number of observers (see "Attack Resistance through Numbers" above)
+
+### Technical Implementation
+
+- **SHA256 cryptographic hashing** for all hash chains
+- **Raft consensus** for internal cluster coordination
+- **Merkle Tree verification** for efficient integrity checking
+- **PostgreSQL Logical Replication** for change detection
+- **Democratic majority vote** for external consensus verification
+
+### Future Enhancements (Phase 3-4)
+
+- TLS/mTLS for inter-node communication
+- Encryption at rest for local storage
+- External anchoring (S3 Object Lock, blockchain) as insurance
+- HSM integration for key management
+- Public Witnz Network for community participation
+
+## Contributing
+
+We welcome contributions! Development guidelines:
+
+- All code and comments in English
+- Minimal code comments - prefer self-documenting code
+- Follow Go best practices
+- Write tests for new features
+- See [doc/](doc/) for detailed architecture
+
+## License
+
+MIT License
+
+## Support
+
+- GitHub Issues: https://github.com/Anes1032/witnz/issues
+- Documentation: [doc/](doc/)
+
+## Acknowledgments
+
+Witnz is built on excellent open source projects:
+- [hashicorp/raft](https://github.com/hashicorp/raft) - Distributed consensus
+- [jackc/pgx](https://github.com/jackc/pgx) - PostgreSQL driver and logical replication
+- [etcd-io/bbolt](https://github.com/etcd-io/bbolt) - Embedded key-value database

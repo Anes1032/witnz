@@ -11,6 +11,7 @@ import (
 type Config struct {
 	Database        DatabaseConfig         `mapstructure:"database"`
 	Node            NodeConfig             `mapstructure:"node"`
+	Raft            RaftConfig             `mapstructure:"raft"`
 	ProtectedTables []ProtectedTableConfig `mapstructure:"protected_tables"`
 	Alerts          AlertsConfig           `mapstructure:"alerts"`
 }
@@ -31,6 +32,11 @@ type NodeConfig struct {
 	Peers     []string          `mapstructure:"peers"`
 	Bootstrap bool              `mapstructure:"bootstrap"`
 	PeerAddrs map[string]string `mapstructure:"peer_addrs"`
+}
+
+type RaftConfig struct {
+	LeadershipTransferInterval string `mapstructure:"leadership_transfer_interval"`
+	FollowerAutoShutdown       bool   `mapstructure:"follower_auto_shutdown"`
 }
 
 type ProtectedTableConfig struct {
