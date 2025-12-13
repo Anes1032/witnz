@@ -674,7 +674,7 @@ Witnz is **Audit-as-a-Service** - continuous database integrity verification wit
 | Aspect | Traditional Manual Audit | pgaudit + S3 Logs | immudb / QLDB | Witnz (Trinity Consensus) |
 |--------|--------------------------|-------------------|---------------|---------------------------|
 | **Verification Timing** | Periodic (annual, quarterly) | Post-hoc log review | Real-time (within system) | Real-time + Independent third party |
-| **Third-Party Attestation** | Auditor signs off after review | None (self-attestation) | None (self-attestation) | Witnz Cloud + Optional external auditor |
+| **Third-Party Attestation** | Auditor signs off after review | None (self-attestation) | None (self-attestation) | Witnz Cloud (PLAN) |
 | **Tamper Detection** | After the fact (weeks/months later) | Reactive (if someone checks logs) | Within database only | Immediate + External verification |
 | **Legal Standing** | High (Big 4 auditor signature) | Low (customer's own logs) | Medium (proprietary system) | High (neutral third party + auditor) |
 | **Deployment Complexity** | Minimal (auditor visits) | Medium (log management) | High (new database, migration) | Low (sidecar binary, no schema changes) |
