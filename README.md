@@ -276,7 +276,6 @@ MIT License
 ## Support
 
 - GitHub Issues: https://github.com/Anes1032/witnz/issues
-- Documentation: [doc/](doc/)
 
 ## Acknowledgments
 
