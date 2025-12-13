@@ -270,16 +270,16 @@ graph TB
     RN2 <-->|Raft Consensus| RN3
     RN3 <-->|Raft Consensus| RN1
 
-    RN1 -.->|Hash Submission<br/>(TLS/mTLS)| WC
-    RN2 -.->|Hash Submission<br/>(TLS/mTLS)| WC
-    RN3 -.->|Hash Submission<br/>(TLS/mTLS)| WC
+    RN1 -.->|Hash Submission via TLS| WC
+    RN2 -.->|Hash Submission via TLS| WC
+    RN3 -.->|Hash Submission via TLS| WC
 
     WC --> WDB
     WC --> DASH
     WC --> S3
     WC --> BC
 
-    WC -.->|Read-only<br/>Hash Stream| AUD
+    WC -.->|Read-only Hash Stream| AUD
     WDB -.-> AUD
     AUD --> CERT
 
