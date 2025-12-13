@@ -361,6 +361,47 @@ func compareByRecordID(expected, actual *MerkleTreeBuilder) []int {
 	return differing
 }
 
+// CompareLeafMaps compares two leaf data maps directly without building Merkle trees.
+// This is more efficient when tree structure is not needed (e.g., detailed verification).
+// Returns differing records with their types.
+func CompareLeafMaps(expected, actual map[string]string) []DifferingRecord {
+	differing := []DifferingRecord{}
+
+	// Check all records in expected map
+	for recordID, expectedHash := range expected {
+		actualHash, exists := actual[recordID]
+		if !exists {
+			differing = append(differing, DifferingRecord{
+				RecordID:     recordID,
+				ExpectedHash: expectedHash,
+				ActualHash:   "",
+				Type:         "missing_in_actual",
+			})
+		} else if expectedHash != actualHash {
+			differing = append(differing, DifferingRecord{
+				RecordID:     recordID,
+				ExpectedHash: expectedHash,
+				ActualHash:   actualHash,
+				Type:         "modified",
+			})
+		}
+	}
+
+	// Check for records only in actual map
+	for recordID, actualHash := range actual {
+		if _, exists := expected[recordID]; !exists {
+			differing = append(differing, DifferingRecord{
+				RecordID:     recordID,
+				ExpectedHash: "",
+				ActualHash:   actualHash,
+				Type:         "missing_in_expected",
+			})
+		}
+	}
+
+	return differing
+}
+
 // CalculateDataHash computes a SHA-256 hash of the given data map.
 // It normalizes the data to ensure consistent hashing across different data sources
 // (CDC events vs PostgreSQL queries).
