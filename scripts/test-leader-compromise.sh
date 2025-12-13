@@ -9,13 +9,11 @@ echo "This test demonstrates that Raft alone cannot detect leader node"
 echo "compromise, which justifies the need for Phase 2 Witnz Democracy."
 echo ""
 
-# Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Cleanup function
 cleanup() {
     echo ""
     echo "Cleaning up..."
@@ -24,15 +22,12 @@ cleanup() {
 
 trap cleanup EXIT
 
-# Start fresh
 echo "Starting 3-node Raft cluster..."
 docker-compose up -d postgres node1 node2 node3
 
-# Wait for cluster to form
 echo "Waiting for cluster to initialize (30 seconds)..."
 sleep 30
 
-# Insert legitimate records
 echo ""
 echo "Step 1: Inserting legitimate records..."
 docker-compose exec -T postgres psql -U witnz -d witnz -c "
@@ -44,7 +39,6 @@ docker-compose exec -T postgres psql -U witnz -d witnz -c "
 sleep 10
 echo -e "${GREEN}✓ Legitimate records inserted${NC}"
 
-# Identify current leader
 echo ""
 echo "Step 2: Identifying current leader..."
 LEADER=""
@@ -62,7 +56,6 @@ if [ -z "$LEADER" ]; then
     exit 1
 fi
 
-# Attempt tampering (UPDATE/DELETE on append-only table)
 echo ""
 echo "Step 3: Simulating tampering attempt on protected table..."
 echo "Attempting UPDATE on append-only table (should be detected and blocked)..."
@@ -74,7 +67,6 @@ TAMPER_RESULT=$(docker-compose exec -T postgres psql -U witnz -d witnz -c "
 echo "Tampering attempt result:"
 echo "$TAMPER_RESULT"
 
-# Check if tampering was detected
 sleep 5
 
 echo ""
@@ -89,7 +81,6 @@ else
     echo "$LEADER_LOGS"
 fi
 
-# Check if the UPDATE was actually applied to the database
 echo ""
 echo "Step 5: Checking if tampering was prevented in database..."
 TAMPERED_RECORDS=$(docker-compose exec -T postgres psql -U witnz -d witnz -t -c "
@@ -104,7 +95,6 @@ else
     echo -e "${GREEN}✓ Database level tampering was prevented${NC}"
 fi
 
-# Demonstrate the limitation: Offline BoltDB tampering
 echo ""
 echo "=========================================="
 echo "DEMONSTRATION: Raft Feudalism Limitation"
@@ -116,7 +106,6 @@ echo -e "${YELLOW}Scenario:${NC} An attacker gains root access to the leader nod
 echo "and modifies the BoltDB file directly while the system is offline."
 echo ""
 
-# Stop all nodes
 docker-compose stop node1 node2 node3
 sleep 5
 
@@ -134,7 +123,6 @@ echo "  - No detection of leader compromise is possible"
 echo "  - Tampered hashes replicate to all followers"
 echo ""
 
-# Restart nodes
 echo "Restarting cluster..."
 docker-compose start node1 node2 node3
 sleep 15
@@ -149,7 +137,6 @@ echo "  - Followers = Must obey"
 echo "  - No mechanism to verify leader's correctness"
 echo ""
 
-# Final summary
 echo "=========================================="
 echo -e "${YELLOW}Leader Compromise Test: COMPLETED${NC}"
 echo "=========================================="
@@ -159,7 +146,7 @@ echo "  1. ✓ Real-time tampering attempts are detected"
 echo "  2. ✗ Offline leader BoltDB tampering cannot be detected by Raft"
 echo "  3. ✗ Raft feudalism: Followers must accept leader's values"
 echo ""
-echo "This justifies the need for Phase 2 Witnz Democracy:"
+echo "This justifies the need for Witnz Democracy:"
 echo "  - External Witnz Nodes verify hashes via majority vote"
 echo "  - Detects leader compromise that Raft cannot catch"
 echo "  - Provides zero-trust verification layer"

@@ -91,21 +91,24 @@ func (v *MerkleVerifier) VerifyTable(ctx context.Context, tableName string) erro
 		return v.performFullVerification(ctx, tableName)
 	}
 
-	currentMerkleRoot, recordCount, err := v.calculateCurrentMerkleRoot(ctx, tableName)
+	expectedMerkleRoot, boltdbRecordCount, err := v.calculateMerkleRootFromBoltDB(tableName)
 	if err != nil {
-		return fmt.Errorf("failed to calculate current Merkle Root: %w", err)
+		return fmt.Errorf("failed to calculate expected Merkle Root from BoltDB: %w", err)
 	}
 
-	if currentMerkleRoot == latestCheckpoint.MerkleRoot && recordCount == latestCheckpoint.RecordCount {
-		fmt.Printf("✅ Merkle Root match for %s (fast path)\n", tableName)
+	actualMerkleRoot, pgRecordCount, err := v.calculateCurrentMerkleRoot(ctx, tableName)
+	if err != nil {
+		return fmt.Errorf("failed to calculate actual Merkle Root from PostgreSQL: %w", err)
+	}
 
-		if v.shouldCreateCheckpoint(latestCheckpoint) {
-			return v.createCheckpoint(ctx, tableName, currentMerkleRoot, recordCount)
-		}
-		return nil
+	if actualMerkleRoot == expectedMerkleRoot && pgRecordCount == boltdbRecordCount {
+		fmt.Printf("✅ Merkle Root match for %s (PostgreSQL matches BoltDB)\n", tableName)
+		return v.createCheckpoint(ctx, tableName, actualMerkleRoot, pgRecordCount)
 	}
 
 	fmt.Printf("⚠️  Merkle Root mismatch for %s, performing detailed verification...\n", tableName)
+	fmt.Printf("   Expected (BoltDB): %s (%d records)\n", expectedMerkleRoot[:16]+"...", boltdbRecordCount)
+	fmt.Printf("   Actual (PostgreSQL): %s (%d records)\n", actualMerkleRoot[:16]+"...", pgRecordCount)
 	return v.performDetailedVerification(ctx, tableName, latestCheckpoint.MerkleRoot)
 }
 
@@ -176,7 +179,9 @@ func (v *MerkleVerifier) performDetailedVerification(ctx context.Context, tableN
 		id := extractIDFromRecordID(entry.RecordID)
 
 		if !dbRecordIDs[id] {
-			tamperedRecords = append(tamperedRecords, fmt.Sprintf("seq=%d (record deleted: id=%s)", entry.SequenceNum, id))
+			msg := fmt.Sprintf("seq=%d (record deleted: id=%s)", entry.SequenceNum, id)
+			tamperedRecords = append(tamperedRecords, msg)
+			fmt.Printf("  TAMPERING: %s\n", msg)
 			continue
 		}
 
@@ -198,8 +203,13 @@ func (v *MerkleVerifier) performDetailedVerification(ctx context.Context, tableN
 			continue
 		}
 
-		currentLeaves := builder.GetRoot()
-		_ = currentLeaves
+		currentDataHash := builder.GetRoot()
+		if currentDataHash != entry.DataHash {
+			msg := fmt.Sprintf("seq=%d (data modified: id=%s, expected hash=%s, actual hash=%s)",
+				entry.SequenceNum, id, entry.DataHash[:16]+"...", currentDataHash[:16]+"...")
+			tamperedRecords = append(tamperedRecords, msg)
+			fmt.Printf("  TAMPERING: %s\n", msg)
+		}
 	}
 
 	if len(dbRecordIDs) > 0 {
@@ -211,10 +221,39 @@ func (v *MerkleVerifier) performDetailedVerification(ctx context.Context, tableN
 	}
 
 	if len(tamperedRecords) > 0 {
-		return fmt.Errorf("found %d tampered records: %v", len(tamperedRecords), tamperedRecords)
+		errMsg := fmt.Sprintf("🚨 CRITICAL: Hash chain integrity violation detected! Found %d tampered records", len(tamperedRecords))
+		fmt.Println(errMsg)
+		fmt.Println("Tampered records:")
+		for _, record := range tamperedRecords {
+			fmt.Printf("  - %s\n", record)
+		}
+		fmt.Println("")
+		fmt.Println("⚠️  WARNING: Phase 1 Limitation")
+		fmt.Println("  This detection compares PostgreSQL data with local BoltDB.")
+		fmt.Println("  Cannot distinguish between:")
+		fmt.Println("    - PostgreSQL tampering (attacker modified DB)")
+		fmt.Println("    - BoltDB tampering (attacker modified hash storage)")
+		fmt.Println("")
+		fmt.Println("Phase 2 TODO: Leader Comparison")
+		fmt.Println("  1. Query leader for authoritative BoltDB hashes")
+		fmt.Println("  2. Compare local BoltDB with leader's BoltDB")
+		fmt.Println("  3. If local BoltDB != leader BoltDB:")
+		fmt.Println("     → Assume local BoltDB is corrupted (Raft Feudalism)")
+		fmt.Println("     → Call os.Exit(1) to self-terminate")
+		fmt.Println("  4. If local BoltDB == leader BoltDB:")
+		fmt.Println("     → PostgreSQL was tampered")
+		fmt.Println("     → Alert admin but continue operating")
+		fmt.Println("")
+
+		return fmt.Errorf("%s", errMsg)
 	}
 
-	return nil
+	// No tampering detected - update checkpoint with current state
+	currentMerkleRoot, recordCount, err := v.calculateCurrentMerkleRoot(ctx, tableName)
+	if err != nil {
+		return fmt.Errorf("failed to calculate current Merkle Root: %w", err)
+	}
+	return v.createCheckpoint(ctx, tableName, currentMerkleRoot, recordCount)
 }
 
 func (v *MerkleVerifier) calculateCurrentMerkleRoot(ctx context.Context, tableName string) (string, int, error) {
@@ -267,6 +306,29 @@ func (v *MerkleVerifier) calculateCurrentMerkleRoot(ctx context.Context, tableNa
 	return builder.GetRoot(), recordCount, nil
 }
 
+func (v *MerkleVerifier) calculateMerkleRootFromBoltDB(tableName string) (string, int, error) {
+	entries, err := v.storage.GetAllHashEntries(tableName)
+	if err != nil {
+		return "", 0, fmt.Errorf("failed to get hash entries from BoltDB: %w", err)
+	}
+
+	if len(entries) == 0 {
+		return "", 0, nil
+	}
+
+	builder := hash.NewMerkleTreeBuilder()
+
+	for _, entry := range entries {
+		builder.AddLeafHash(entry.RecordID, entry.DataHash)
+	}
+
+	if err := builder.Build(); err != nil {
+		return "", 0, fmt.Errorf("failed to build Merkle Tree from BoltDB: %w", err)
+	}
+
+	return builder.GetRoot(), len(entries), nil
+}
+
 func (v *MerkleVerifier) createCheckpoint(ctx context.Context, tableName, merkleRoot string, recordCount int) error {
 	latestEntry, err := v.storage.GetLatestHashEntry(tableName)
 	var seqNum uint64 = 0
@@ -286,13 +348,14 @@ func (v *MerkleVerifier) createCheckpoint(ctx context.Context, tableName, merkle
 		return fmt.Errorf("failed to save checkpoint: %w", err)
 	}
 
-	fmt.Printf("📍 Created Merkle checkpoint for %s (root: %s..., records: %d)\n",
-		tableName, merkleRoot[:16], recordCount)
+	if len(merkleRoot) >= 16 {
+		fmt.Printf("📍 Created Merkle checkpoint for %s (root: %s..., records: %d)\n",
+			tableName, merkleRoot[:16], recordCount)
+	} else {
+		fmt.Printf("📍 Created Merkle checkpoint for %s (root: %s, records: %d)\n",
+			tableName, merkleRoot, recordCount)
+	}
 	return nil
-}
-
-func (v *MerkleVerifier) shouldCreateCheckpoint(lastCheckpoint *storage.MerkleCheckpoint) bool {
-	return time.Since(lastCheckpoint.Timestamp) > 24*time.Hour
 }
 
 func extractIDFromRecordID(recordID string) string {

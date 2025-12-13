@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/test-common.sh"
+
 echo "=========================================="
 echo "Raft Election Timeout Test"
 echo "=========================================="
@@ -9,86 +12,41 @@ echo "This test verifies that Raft automatically elects a new leader"
 echo "when the current leader fails (election timeout mechanism)."
 echo ""
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
-
-# Cleanup function
-cleanup() {
-    echo ""
-    echo "Cleaning up..."
-    docker-compose down -v 2>/dev/null || true
-}
-
 trap cleanup EXIT
 
-# Start fresh
-echo "Starting 3-node Raft cluster..."
-docker-compose up -d postgres node1 node2 node3
+docker-compose down -v 2>/dev/null || true
 
-# Wait for cluster to form
-echo "Waiting for cluster to initialize (30 seconds)..."
-sleep 30
+setup_postgres
+start_cluster 10
 
-# Check initial leader
+identify_cluster_roles || exit 1
+
+insert_test_records 2
+
 echo ""
-echo "Step 1: Identifying current leader..."
-LEADER=""
-for node in node1 node2 node3; do
-    STATUS=$(docker-compose exec -T $node /witnz status 2>/dev/null || echo "error")
-    if echo "$STATUS" | grep -q "Role: leader"; then
-        LEADER=$node
-        echo -e "${GREEN}✓ Leader found: $LEADER${NC}"
-        break
-    fi
-done
-
-if [ -z "$LEADER" ]; then
-    echo -e "${RED}✗ No leader found! Cluster may not be healthy.${NC}"
-    exit 1
-fi
-
-# Insert test records to verify cluster is working
-echo ""
-echo "Step 2: Inserting test records..."
-docker-compose exec -T postgres psql -U witnz -d witnz -c "
-    INSERT INTO audit_log (user_id, action, details) VALUES
-    (1, 'login', 'Test record 1'),
-    (2, 'logout', 'Test record 2');
-" > /dev/null
-
-sleep 5
-
-# Verify hash chain replicated to all nodes
-echo -e "${GREEN}✓ Test records inserted${NC}"
-
-# Kill the leader
-echo ""
-echo "Step 3: Stopping leader node ($LEADER)..."
+echo "Stopping leader node ($LEADER)..."
 docker-compose stop $LEADER
 echo -e "${YELLOW}Leader $LEADER stopped${NC}"
 
-# Wait for election timeout and new leader election
 echo ""
 echo "Waiting for election timeout and new leader election (10 seconds)..."
 sleep 10
 
-# Check for new leader
 echo ""
-echo "Step 4: Verifying new leader elected..."
+echo "Verifying new leader elected..."
 NEW_LEADER=""
 for node in node1 node2 node3; do
     if [ "$node" == "$LEADER" ]; then
-        continue  # Skip the stopped node
+        continue
     fi
 
-    STATUS=$(docker-compose exec -T $node /witnz status 2>/dev/null || echo "error")
-    if echo "$STATUS" | grep -q "Role: leader"; then
-        NEW_LEADER=$node
-        echo -e "${GREEN}✓ New leader elected: $NEW_LEADER${NC}"
-        break
+    if docker-compose ps $node | grep -q "Up"; then
+        RECENT_LEADER_LOG=$(docker-compose logs --since 15s $node | grep "entering leader state" || echo "")
+        if [ -n "$RECENT_LEADER_LOG" ]; then
+            NEW_LEADER=$node
+            echo -e "${GREEN}✓ New leader elected: $NEW_LEADER${NC}"
+            break
+        fi
     fi
 done
 
@@ -97,18 +55,16 @@ if [ -z "$NEW_LEADER" ]; then
     exit 1
 fi
 
-# Verify cluster is still operational with 2 nodes
 echo ""
-echo "Step 5: Verifying cluster continues operating with 2 nodes..."
-docker-compose exec -T postgres psql -U witnz -d witnz -c "
-    INSERT INTO audit_log (user_id, action, details) VALUES
-    (3, 'login', 'Test record after leader failure');
+echo "Verifying cluster continues operating with 2 nodes..."
+docker-compose exec -T postgres psql -U witnz -d witnzdb -c "
+    INSERT INTO audit_log (action) VALUES
+    ('Test record after leader failure');
 " > /dev/null
 
 sleep 5
 
-# Check if hash chain replication worked
-RECORD_COUNT=$(docker-compose exec -T postgres psql -U witnz -d witnz -t -c "SELECT COUNT(*) FROM audit_log;" | tr -d ' ')
+RECORD_COUNT=$(get_record_count)
 if [ "$RECORD_COUNT" -ge "3" ]; then
     echo -e "${GREEN}✓ Cluster continues accepting writes (2-node quorum maintained)${NC}"
 else
@@ -116,21 +72,19 @@ else
     exit 1
 fi
 
-# Optional: Restart old leader and verify it becomes follower
 echo ""
-echo "Step 6: Restarting old leader and verifying it joins as follower..."
+echo "Restarting old leader and verifying it joins as follower..."
 docker-compose start $LEADER
 
 sleep 10
 
-STATUS=$(docker-compose exec -T $LEADER /witnz status 2>/dev/null || echo "error")
-if echo "$STATUS" | grep -q "Role: follower"; then
+FOLLOWER_LOG=$(docker-compose logs --since 15s $LEADER | grep "entering follower state" || echo "")
+if [ -n "$FOLLOWER_LOG" ]; then
     echo -e "${GREEN}✓ Old leader rejoined cluster as follower${NC}"
 else
     echo -e "${YELLOW}⚠ Old leader status unclear (may still be starting up)${NC}"
 fi
 
-# Final verification
 echo ""
 echo "=========================================="
 echo -e "${GREEN}Election Timeout Test: PASSED${NC}"
@@ -141,4 +95,9 @@ echo "  - Original leader: $LEADER"
 echo "  - New leader after timeout: $NEW_LEADER"
 echo "  - Cluster maintained quorum with 2 nodes"
 echo "  - Hash chain replication continued"
+echo ""
+echo "This demonstrates Raft's automatic leader election:"
+echo "  - Leader failure detected via election timeout"
+echo "  - Remaining nodes elected new leader"
+echo "  - Cluster continues operating without manual intervention"
 echo ""

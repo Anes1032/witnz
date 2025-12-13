@@ -82,27 +82,34 @@ func (n *Node) Start(ctx context.Context) error {
 	n.raft = ra
 
 	if n.config.Bootstrap {
-		servers := []raft.Server{
-			{
-				ID:      raftConfig.LocalID,
-				Address: transport.LocalAddr(),
-			},
+		hasState, err := raft.HasExistingState(logStore, stableStore, snapshotStore)
+		if err != nil {
+			return fmt.Errorf("failed to check existing state: %w", err)
 		}
 
-		for peerID, peerAddr := range n.config.PeerAddrs {
-			servers = append(servers, raft.Server{
-				ID:      raft.ServerID(peerID),
-				Address: raft.ServerAddress(peerAddr),
-			})
-		}
+		if !hasState {
+			servers := []raft.Server{
+				{
+					ID:      raftConfig.LocalID,
+					Address: transport.LocalAddr(),
+				},
+			}
 
-		configuration := raft.Configuration{
-			Servers: servers,
-		}
+			for peerID, peerAddr := range n.config.PeerAddrs {
+				servers = append(servers, raft.Server{
+					ID:      raft.ServerID(peerID),
+					Address: raft.ServerAddress(peerAddr),
+				})
+			}
 
-		future := ra.BootstrapCluster(configuration)
-		if err := future.Error(); err != nil {
-			return fmt.Errorf("failed to bootstrap cluster: %w", err)
+			configuration := raft.Configuration{
+				Servers: servers,
+			}
+
+			future := ra.BootstrapCluster(configuration)
+			if err := future.Error(); err != nil {
+				return fmt.Errorf("failed to bootstrap cluster: %w", err)
+			}
 		}
 	} else if len(n.config.PeerAddrs) > 0 {
 		if err := n.waitForLeader(); err != nil {

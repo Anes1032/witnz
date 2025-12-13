@@ -206,6 +206,9 @@ var startCmd = &cobra.Command{
 var statusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Display node status",
+	Long: `Display node status including protected tables and hash chain state.
+Note: Raft cluster state cannot be shown via this command as it would conflict with running nodes.
+Use 'docker-compose logs' or check application logs to see Raft leader election status.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load(cfgFile)
 		if err != nil {
@@ -221,6 +224,18 @@ var statusCmd = &cobra.Command{
 
 		fmt.Printf("Node ID: %s\n", cfg.Node.ID)
 		fmt.Printf("Data Directory: %s\n", cfg.Node.DataDir)
+		fmt.Printf("Bind Address: %s\n", cfg.Node.BindAddr)
+
+		if len(cfg.Node.PeerAddrs) > 0 || cfg.Node.Bootstrap {
+			fmt.Printf("Cluster Mode: Raft (bootstrap: %v)\n", cfg.Node.Bootstrap)
+			fmt.Printf("Peers: %d configured\n", len(cfg.Node.PeerAddrs))
+			fmt.Printf("\nNote: To check Raft leader status, use 'docker-compose logs' and look for:\n")
+			fmt.Printf("  - 'entering leader state' (this node is leader)\n")
+			fmt.Printf("  - 'entering follower state' (this node is follower)\n")
+		} else {
+			fmt.Printf("Cluster Mode: single-node (no Raft)\n")
+		}
+
 		fmt.Printf("\nProtected Tables:\n")
 
 		for _, tableConfig := range cfg.ProtectedTables {
@@ -229,11 +244,29 @@ var statusCmd = &cobra.Command{
 			latest, err := store.GetLatestHashEntry(tableConfig.Name)
 			if err == nil {
 				fmt.Printf("    Latest sequence: %d\n", latest.SequenceNum)
-				fmt.Printf("    Latest hash: %s\n", latest.Hash[:16])
+				fmt.Printf("    Latest hash: %s...\n", latest.Hash[:16])
+				fmt.Printf("    Timestamp: %s\n", latest.Timestamp.Format(time.RFC3339))
 			} else {
 				fmt.Printf("    No entries yet\n")
 			}
+
+			checkpoint, err := store.GetLatestMerkleCheckpoint(tableConfig.Name)
+			if err == nil {
+				fmt.Printf("    Latest checkpoint: seq=%d, records=%d\n",
+					checkpoint.SequenceNum, checkpoint.RecordCount)
+			}
 		}
+
+		totalEntries := 0
+		for _, tableConfig := range cfg.ProtectedTables {
+			entries, err := store.GetAllHashEntries(tableConfig.Name)
+			if err == nil {
+				totalEntries += len(entries)
+			}
+		}
+
+		fmt.Printf("\nStorage Statistics:\n")
+		fmt.Printf("  Total hash entries: %d\n", totalEntries)
 
 		return nil
 	},

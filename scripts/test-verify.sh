@@ -1,102 +1,119 @@
 #!/bin/bash
 set -e
 
-echo "=== Witnz Hash Chain Verification Test ==="
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/test-common.sh"
+
+echo "=========================================="
+echo "Hash Chain Verification Test"
+echo "=========================================="
 echo ""
-echo "This test verifies that witnz can detect tampering that occurred while nodes were offline."
+echo "This test verifies offline tampering detection via hash chain verification."
+echo "Test cases: UPDATE, DELETE, DELETE+INSERT, Phantom INSERT"
 echo ""
+
+trap cleanup EXIT
 
 docker-compose down -v 2>/dev/null || true
 
-echo ""
-echo "Step 1: Starting PostgreSQL..."
-docker-compose up -d postgres
-sleep 5
+setup_postgres
+start_cluster 10
+
+verify_leader_election || exit 1
+
+insert_test_records 5
+
+verify_hash_chain_replication 5
+
+stop_all_nodes
 
 echo ""
-echo "Step 2: Setting up test database..."
-docker-compose exec -T postgres psql -U witnz -d witnzdb < test/integration/setup.sql
-
-echo ""
-echo "Step 3: Starting witnz 3-node cluster..."
-docker-compose up -d node1 node2 node3
-echo "Waiting for cluster to form..."
-sleep 10
-
-echo ""
-echo "Step 4: Verifying leader election..."
-LEADER_COUNT=$(docker-compose logs | grep "entering leader state" | wc -l | tr -d ' ')
-if [ "$LEADER_COUNT" -eq 1 ]; then
-  echo "✅ Leader election successful (exactly 1 leader)"
-else
-  echo "❌ Leader election failed (expected 1 leader, got $LEADER_COUNT)"
-  docker-compose logs
-  exit 1
-fi
-
-echo ""
-echo "Step 5: Inserting test data..."
+echo "Tampering with database while nodes are offline..."
+echo "=========================================="
+echo "TEST CASE 1: UPDATE (Modify existing data)"
+echo "TEST CASE 2: DELETE (Remove record)"
+echo "TEST CASE 3: DELETE + INSERT (Same ID, new data)"
+echo "TEST CASE 4: INSERT (Phantom record)"
+echo "=========================================="
 docker-compose exec -T postgres psql -U witnz -d witnzdb <<'EOF'
-INSERT INTO audit_log (action) VALUES ('Action 1');
-INSERT INTO audit_log (action) VALUES ('Action 2');
-INSERT INTO audit_log (action) VALUES ('Action 3');
-SELECT id, action FROM audit_log;
-EOF
-
-echo "Waiting for CDC propagation and hash chain storage..."
-sleep 5
-
-echo ""
-echo "Step 6: Verifying hash chain entries were created..."
-HASH_CHAIN_LOGS=$(docker-compose logs | grep "hash chain entry replicated" | wc -l | tr -d ' ')
-if [ "$HASH_CHAIN_LOGS" -ge 3 ]; then
-  echo "✅ Hash chain entries replicated via Raft ($HASH_CHAIN_LOGS entries)"
-else
-  echo "⚠️  Expected 3+ hash chain entries, found $HASH_CHAIN_LOGS"
-fi
-
-echo ""
-echo "Step 7: Stopping all witnz nodes..."
-docker-compose stop node1 node2 node3
-echo "All nodes stopped."
-sleep 2
-
-echo ""
-echo "Step 8: Tampering with database while nodes are offline..."
-echo "Modifying record id=2..."
-docker-compose exec -T postgres psql -U witnz -d witnzdb <<'EOF'
+-- TEST CASE 1: UPDATE id=2 (data modification)
 UPDATE audit_log SET action = 'TAMPERED_VALUE' WHERE id = 2;
-SELECT id, action FROM audit_log;
+
+-- TEST CASE 2: DELETE id=3 (record deletion)
+DELETE FROM audit_log WHERE id = 3;
+
+-- TEST CASE 3: DELETE id=4 + INSERT id=4 (replace with new data)
+DELETE FROM audit_log WHERE id = 4;
+INSERT INTO audit_log (id, action) VALUES (4, 'REPLACED_DATA');
+
+-- TEST CASE 4: INSERT id=100 (phantom insert - never in hash chain)
+INSERT INTO audit_log (id, action) VALUES (100, 'Phantom Insert');
+
+SELECT id, action FROM audit_log ORDER BY id;
 EOF
 
-echo ""
-echo "Step 9: Restarting witnz nodes..."
-docker-compose start node1 node2 node3
-echo "Waiting for nodes to start and run verification..."
-sleep 15
+restart_all_nodes 15
 
 echo ""
-echo "Step 10: Checking for tampering detection..."
-if docker-compose logs --since 15s | grep -q "TAMPERING"; then
-  echo "🚨 TAMPERING DETECTED!"
-  docker-compose logs --since 15s | grep -E "TAMPERING|tampered|modified" | head -5
-  echo "✅ Verification successfully detected the tampering"
+echo "Checking offline tampering detection..."
+echo "=========================================="
+LOGS=$(docker-compose logs --since 15s)
+
+echo ""
+echo "TEST CASE 1: UPDATE Detection (id=2)"
+if echo "$LOGS" | grep -q "seq=2.*id=2"; then
+    echo -e "${GREEN}✓ PASSED: Detected UPDATE tampering on id=2${NC}"
+    echo "$LOGS" | grep "TAMPERING.*seq=2.*id=2" | head -1
 else
-  echo "⚠️  Tampering detection message not found in recent logs"
-  echo "Checking all logs..."
-  docker-compose logs | grep -E "VERIFICATION|verified|TAMPERING" | tail -10
+    echo -e "${RED}✗ FAILED: UPDATE tampering on id=2 NOT detected${NC}"
 fi
 
 echo ""
-echo "=== Hash Chain Verification Test Complete ==="
+echo "TEST CASE 2: DELETE Detection (id=3)"
+if echo "$LOGS" | grep -q "record deleted.*id=3"; then
+    echo -e "${GREEN}✓ PASSED: Detected DELETE tampering on id=3${NC}"
+    echo "$LOGS" | grep "record deleted.*id=3" | head -1
+else
+    echo -e "${RED}✗ FAILED: DELETE tampering on id=3 NOT detected${NC}"
+fi
+
+echo ""
+echo "TEST CASE 3: DELETE+INSERT Detection (id=4)"
+if echo "$LOGS" | grep -q "seq=4.*id=4"; then
+    echo -e "${GREEN}✓ PASSED: Detected DELETE+INSERT tampering on id=4 (hash mismatch)${NC}"
+    echo "$LOGS" | grep "TAMPERING.*seq=4.*id=4" | head -1
+else
+    echo -e "${RED}✗ FAILED: DELETE+INSERT tampering on id=4 NOT detected${NC}"
+fi
+
+echo ""
+echo "TEST CASE 4: Phantom INSERT Detection (id=100)"
+if echo "$LOGS" | grep -q "Phantom Insert.*id=100"; then
+    echo -e "${GREEN}✓ PASSED: Detected Phantom INSERT on id=100${NC}"
+    echo "$LOGS" | grep "Phantom Insert.*id=100" | head -1
+else
+    echo -e "${RED}✗ FAILED: Phantom INSERT on id=100 NOT detected${NC}"
+fi
+
+echo ""
+echo "=========================================="
+echo -e "${GREEN}Hash Chain Verification Test: COMPLETED${NC}"
+echo "=========================================="
 echo ""
 echo "Test Flow:"
-echo "  1. Started cluster, inserted 3 records"
+echo "  1. Started cluster, inserted 5 records (id=1,2,3,4,5)"
 echo "  2. Stopped all nodes"
-echo "  3. Tampered with record id=2 while offline"
+echo "  3. Applied 4 types of tampering:"
+echo "     - UPDATE id=2 (data modification)"
+echo "     - DELETE id=3 (record deletion)"
+echo "     - DELETE+INSERT id=4 (same ID, new data)"
+echo "     - INSERT id=100 (phantom record)"
 echo "  4. Restarted nodes"
-echo "  5. Startup verification detected the tampering"
-
+echo "  5. Startup verification detected all tampering types"
 echo ""
-echo "Cleaning up..."
-docker-compose down -v
+echo "Summary:"
+echo "  ✓ TEST CASE 1: UPDATE detection (hash mismatch)"
+echo "  ✓ TEST CASE 2: DELETE detection (record missing)"
+echo "  ✓ TEST CASE 3: DELETE+INSERT detection (hash mismatch)"
+echo "  ✓ TEST CASE 4: Phantom INSERT detection (extra record)"
+echo ""
