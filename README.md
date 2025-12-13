@@ -250,11 +250,11 @@ graph TB
     end
 
     subgraph "Witnz Cloud (Neutral Third Party)"
-        WC[Multi-Tenant<br/>Hash Receiver]
+        WC[Multi-Tenant Hash Receiver]
         WDB[(Hash Storage)]
-        DASH[Customer<br/>Dashboard]
-        S3[S3 Object Lock<br/>Anchoring]
-        BC[Blockchain<br/>Anchoring<br/>(Optional)]
+        DASH[Customer Dashboard]
+        S3[S3 Object Lock]
+        BC[Blockchain Optional]
     end
 
     subgraph "Auditor (Adversarial Oversight)"
