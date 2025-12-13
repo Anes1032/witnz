@@ -25,12 +25,31 @@ Witnz is a sidecar monitoring tool that detects unauthorized modifications to Po
 
 ## How It Works
 
-```
-PostgreSQL → Logical Replication → Witnz Nodes (Raft Cluster)
-                                         ↓
-                                   Hash Chains in BoltDB
-                                         ↓
-                                   Periodic Verification
+```mermaid
+graph TB
+    subgraph "Application Servers"
+        App1[App Server 1]
+        App2[App Server 2]
+        App3[App Server 3]
+    end
+
+    subgraph "Raft Nodes（Sidecar）"
+        Node1[Raft Node 1<br/>Leader]
+        Node2[Raft Node 2<br/>Follower]
+        Node3[Raft Node 3<br/>Follower]
+    end
+
+    subgraph "Storage"
+        PG[(PostgreSQL<br/>RDS/Aurora)]
+    end
+
+    App1 & App2 & App3 -->|SQL| PG
+
+    PG -->|Logical Replication| Node1 & Node2 & Node3
+
+    Node1 <-->|Raft Consensus| Node2
+    Node2 <-->|Raft Consensus| Node3
+    Node3 <-->|Raft Consensus| Node1
 ```
 
 ### Protection Layers
