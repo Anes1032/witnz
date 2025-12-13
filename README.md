@@ -640,19 +640,29 @@ Witnz has completed its MVP phase with core Raft Feudalism implementation:
 - CDC batch processing (10x throughput)
 - Health checks, structured logging, CDC reconnection
 
-### 🌐 Phase 4: Potential Public Network Operation (EXPLORATORY)
+### 🌐 Phase 4: Potential Operational Models (EXPLORATORY)
 
-One possible operational model for Witnz at scale:
+Several possible operational models for Witnz at scale:
 
-**Concept**: Public observer network with economic incentives for participation.
-
-**How it could work**:
+**1. Public Observer Network**
 - Open participation (anyone runs 15MB binary)
 - Token rewards for valid observations
 - Multi-region geographic distribution
-- Public audit log for transparency
+- Community-driven decentralized network
 
-**Note**: This is one of many possible ways to operate Witnz Nodes. The core innovation is Proof of Observation itself, not this specific operational model.
+**2. SaaS / Managed Service**
+- Witnz-operated observer nodes
+- Multi-tenant support
+- Pay-as-you-go pricing model
+- Compliance-ready audit reports
+
+**3. Enterprise / On-Premise**
+- Customer-operated observer infrastructure
+- Private observer pools within enterprise networks
+- Full control over observer selection and rotation
+- Hybrid models (internal + external observers)
+
+**Note**: These are exploratory concepts. The core innovation is Proof of Observation itself, not any specific operational model.
 
 ## Architecture & Technology
 
