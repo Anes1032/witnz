@@ -87,6 +87,10 @@ var startCmd = &cobra.Command{
 		fmt.Printf("Connecting to PostgreSQL: %s:%d/%s\n",
 			cfg.Database.Host, cfg.Database.Port, cfg.Database.Database)
 
+		// Create a single context for all components
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
 		dbPath := filepath.Join(cfg.Node.DataDir, "witnz.db")
 		store, err := storage.New(dbPath)
 		if err != nil {
@@ -126,9 +130,6 @@ var startCmd = &cobra.Command{
 				return fmt.Errorf("failed to create raft node: %w", err)
 			}
 
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-
 			if err := raftNode.Start(ctx); err != nil {
 				return fmt.Errorf("failed to start raft node: %w", err)
 			}
@@ -153,9 +154,6 @@ var startCmd = &cobra.Command{
 
 		manager := cdc.NewManager(cdcConfig)
 		manager.AddHandler(handler)
-
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
 
 		fmt.Println("Initializing CDC manager...")
 		if err := manager.Initialize(ctx); err != nil {

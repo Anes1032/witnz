@@ -232,29 +232,12 @@ func (v *MerkleVerifier) performDetailedVerification(ctx context.Context, tableN
 	}
 
 	if len(tamperedRecords) > 0 {
-		errMsg := fmt.Sprintf("🚨 CRITICAL: Hash chain integrity violation detected! Found %d tampered records", len(tamperedRecords))
+		errMsg := fmt.Sprintf("🚨 CRITICAL: PostgreSQL tampering detected! Found %d tampered records", len(tamperedRecords))
 		fmt.Println(errMsg)
 		fmt.Println("Tampered records:")
 		for _, record := range tamperedRecords {
 			fmt.Printf("  - %s\n", record)
 		}
-		fmt.Println("")
-		fmt.Println("⚠️  WARNING: Phase 1 Limitation")
-		fmt.Println("  This detection compares PostgreSQL data with local BoltDB.")
-		fmt.Println("  Cannot distinguish between:")
-		fmt.Println("    - PostgreSQL tampering (attacker modified DB)")
-		fmt.Println("    - BoltDB tampering (attacker modified hash storage)")
-		fmt.Println("")
-		fmt.Println("Phase 2 TODO: Leader Comparison")
-		fmt.Println("  1. Query leader for authoritative BoltDB hashes")
-		fmt.Println("  2. Compare local BoltDB with leader's BoltDB")
-		fmt.Println("  3. If local BoltDB != leader BoltDB:")
-		fmt.Println("     → Assume local BoltDB is corrupted (Raft Feudalism)")
-		fmt.Println("     → Call os.Exit(1) to self-terminate")
-		fmt.Println("  4. If local BoltDB == leader BoltDB:")
-		fmt.Println("     → PostgreSQL was tampered")
-		fmt.Println("     → Alert admin but continue operating")
-		fmt.Println("")
 
 		return fmt.Errorf("%s", errMsg)
 	}

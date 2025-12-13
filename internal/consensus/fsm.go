@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"sync"
 
 	"github.com/hashicorp/raft"
@@ -42,6 +43,12 @@ func (f *FSM) applyHashChain(entry *LogEntry) interface{} {
 	dataHash := ""
 	if dh, ok := entry.Data["data_hash"].(string); ok {
 		dataHash = dh
+	}
+
+	if dataHash == "" {
+		slog.Warn("Received hash entry with empty data_hash",
+			"table", entry.TableName,
+			"sequence_num", entry.Data["sequence_num"])
 	}
 
 	hashEntry := &storage.HashEntry{
