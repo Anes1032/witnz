@@ -204,17 +204,7 @@ func (v *MerkleVerifier) performDetailedVerification(ctx context.Context, tableN
 			continue
 		}
 
-		builder := hash.NewMerkleTreeBuilder()
-		if err := builder.AddLeaf(entry.RecordID, recordData); err != nil {
-			tamperedRecords = append(tamperedRecords, fmt.Sprintf("seq=%d (hash calculation failed: id=%s)", entry.SequenceNum, id))
-			continue
-		}
-
-		if err := builder.Build(); err != nil {
-			continue
-		}
-
-		currentDataHash := builder.GetRoot()
+		currentDataHash := hash.CalculateDataHash(recordData)
 		if currentDataHash != entry.DataHash {
 			msg := fmt.Sprintf("seq=%d (data modified: id=%s, expected hash=%s, actual hash=%s)",
 				entry.SequenceNum, id, entry.DataHash[:16]+"...", currentDataHash[:16]+"...")

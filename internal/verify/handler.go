@@ -1,8 +1,6 @@
 package verify
 
 import (
-	"crypto/sha256"
-	"encoding/json"
 	"fmt"
 	"regexp"
 	"time"
@@ -134,25 +132,5 @@ func (h *HashChainHandler) VerifyHashChain(tableName string) error {
 }
 
 func calculateDataHash(data map[string]interface{}) string {
-	// Normalize data for consistent hashing
-	normalized := normalizeForHash(data)
-	jsonData, _ := json.Marshal(normalized)
-	hash := sha256.Sum256(jsonData)
-	return fmt.Sprintf("%x", hash)
-}
-
-// normalizeForHash normalizes data for consistent hash calculation
-// This ensures the same hash is produced regardless of data source (CDC vs DB query)
-// Excludes timestamp fields as they have different formats between CDC and DB
-func normalizeForHash(data map[string]interface{}) map[string]string {
-	result := make(map[string]string)
-	for k, v := range data {
-		// Skip timestamp fields that may have format differences
-		if k == "created_at" || k == "updated_at" {
-			continue
-		}
-		// Convert all values to string representation
-		result[k] = fmt.Sprintf("%v", v)
-	}
-	return result
+	return hash.CalculateDataHash(data)
 }
