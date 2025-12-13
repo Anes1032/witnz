@@ -35,10 +35,7 @@ func NewMerkleTreeBuilder() *MerkleTreeBuilder {
 }
 
 func (mtb *MerkleTreeBuilder) AddLeaf(recordID string, data map[string]interface{}) error {
-	hash, err := calculateDataHash(data)
-	if err != nil {
-		return err
-	}
+	hash := CalculateDataHash(data)
 	mtb.leaves = append(mtb.leaves, hash)
 	mtb.leafDataMap[recordID] = hash
 	return nil
@@ -231,23 +228,47 @@ func (mtb *MerkleTreeBuilder) findTamperedLeavesRecursive(node *MerkleNode, star
 	}
 }
 
-func calculateDataHash(data map[string]interface{}) (string, error) {
-	normalized := normalizeForHash(data)
-	jsonData, err := json.Marshal(normalized)
-	if err != nil {
-		return "", err
-	}
+// CalculateDataHash computes a SHA-256 hash of the given data map.
+// It normalizes the data to ensure consistent hashing across different data sources
+// (CDC events vs PostgreSQL queries).
+func CalculateDataHash(data map[string]interface{}) string {
+	normalized := NormalizeForHash(data)
+	jsonData, _ := json.Marshal(normalized)
 	hash := sha256.Sum256(jsonData)
-	return hex.EncodeToString(hash[:]), nil
+	return hex.EncodeToString(hash[:])
 }
 
-func normalizeForHash(data map[string]interface{}) map[string]string {
+// NormalizeForHash normalizes data for consistent hash calculation.
+// This ensures the same hash is produced regardless of data source (CDC vs DB query).
+// Excludes timestamp fields and normalizes type representations.
+func NormalizeForHash(data map[string]interface{}) map[string]string {
 	result := make(map[string]string)
 	for k, v := range data {
+		// Skip timestamp fields that may have format differences
 		if k == "created_at" || k == "updated_at" {
 			continue
 		}
-		result[k] = fmt.Sprintf("%v", v)
+		result[k] = normalizeValue(v)
 	}
 	return result
+}
+
+// normalizeValue converts a value to a consistent string representation
+// regardless of whether it came from CDC (text) or PostgreSQL query (native types).
+func normalizeValue(v interface{}) string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	switch val := v.(type) {
+	case []byte:
+		// Binary data - use hex encoding for consistency
+		return hex.EncodeToString(val)
+	case string:
+		return val
+	default:
+		// For all other types, use fmt.Sprintf which handles
+		// int, float, bool, etc. consistently
+		return fmt.Sprintf("%v", val)
+	}
 }
