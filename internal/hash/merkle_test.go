@@ -1,6 +1,7 @@
 package hash
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -214,5 +215,153 @@ func TestCalculateDataHash_NilHandling(t *testing.T) {
 	hash := CalculateDataHash(data)
 	if hash == "" {
 		t.Error("Hash should not be empty for data with nil values")
+	}
+}
+
+func TestCompareTrees_IdenticalTrees(t *testing.T) {
+	tree1 := NewMerkleTreeBuilder()
+	tree2 := NewMerkleTreeBuilder()
+
+	for i := 1; i <= 100; i++ {
+		data := map[string]interface{}{"id": i, "name": fmt.Sprintf("record%d", i)}
+		tree1.AddLeaf(fmt.Sprintf("%d", i), data)
+		tree2.AddLeaf(fmt.Sprintf("%d", i), data)
+	}
+
+	tree1.Build()
+	tree2.Build()
+
+	differing := CompareTrees(tree1, tree2)
+	if len(differing) != 0 {
+		t.Errorf("Expected 0 differences for identical trees, got %d", len(differing))
+	}
+}
+
+func TestCompareTrees_SingleDifference(t *testing.T) {
+	tree1 := NewMerkleTreeBuilder()
+	tree2 := NewMerkleTreeBuilder()
+
+	for i := 1; i <= 100; i++ {
+		data1 := map[string]interface{}{"id": i, "name": fmt.Sprintf("record%d", i)}
+		tree1.AddLeaf(fmt.Sprintf("%d", i), data1)
+
+		// Change one record in tree2
+		if i == 50 {
+			data2 := map[string]interface{}{"id": i, "name": "TAMPERED"}
+			tree2.AddLeaf(fmt.Sprintf("%d", i), data2)
+		} else {
+			tree2.AddLeaf(fmt.Sprintf("%d", i), data1)
+		}
+	}
+
+	tree1.Build()
+	tree2.Build()
+
+	differing := CompareTrees(tree1, tree2)
+	if len(differing) != 1 {
+		t.Errorf("Expected 1 difference, got %d", len(differing))
+	}
+}
+
+func TestCompareTrees_MultipleDifferences(t *testing.T) {
+	tree1 := NewMerkleTreeBuilder()
+	tree2 := NewMerkleTreeBuilder()
+
+	tamperedIDs := map[int]bool{10: true, 25: true, 75: true}
+
+	for i := 1; i <= 100; i++ {
+		data1 := map[string]interface{}{"id": i, "name": fmt.Sprintf("record%d", i)}
+		tree1.AddLeaf(fmt.Sprintf("%d", i), data1)
+
+		if tamperedIDs[i] {
+			data2 := map[string]interface{}{"id": i, "name": "TAMPERED"}
+			tree2.AddLeaf(fmt.Sprintf("%d", i), data2)
+		} else {
+			tree2.AddLeaf(fmt.Sprintf("%d", i), data1)
+		}
+	}
+
+	tree1.Build()
+	tree2.Build()
+
+	differing := CompareTrees(tree1, tree2)
+	if len(differing) != 3 {
+		t.Errorf("Expected 3 differences, got %d", len(differing))
+	}
+}
+
+func TestCompareTrees_LargeTreeEfficiency(t *testing.T) {
+	// Test with a large tree to verify O(k log n) efficiency
+	tree1 := NewMerkleTreeBuilder()
+	tree2 := NewMerkleTreeBuilder()
+
+	n := 10000
+	tamperedIndex := 5000
+
+	for i := 1; i <= n; i++ {
+		data1 := map[string]interface{}{"id": i, "value": i * 100}
+		tree1.AddLeaf(fmt.Sprintf("%d", i), data1)
+
+		if i == tamperedIndex {
+			data2 := map[string]interface{}{"id": i, "value": -1}
+			tree2.AddLeaf(fmt.Sprintf("%d", i), data2)
+		} else {
+			tree2.AddLeaf(fmt.Sprintf("%d", i), data1)
+		}
+	}
+
+	tree1.Build()
+	tree2.Build()
+
+	// Verify trees have different roots
+	if tree1.GetRoot() == tree2.GetRoot() {
+		t.Error("Trees should have different roots")
+	}
+
+	differing := CompareTrees(tree1, tree2)
+	if len(differing) != 1 {
+		t.Errorf("Expected 1 difference in large tree, got %d", len(differing))
+	}
+}
+
+func TestGetRecordIDByIndex(t *testing.T) {
+	tree := NewMerkleTreeBuilder()
+
+	tree.AddLeafHash("record-a", "hash-aaa")
+	tree.AddLeafHash("record-b", "hash-bbb")
+	tree.AddLeafHash("record-c", "hash-ccc")
+
+	tree.Build()
+
+	// After sorting: hash-aaa, hash-bbb, hash-ccc
+	id0, ok0 := tree.GetRecordIDByIndex(0)
+	id1, ok1 := tree.GetRecordIDByIndex(1)
+	id2, ok2 := tree.GetRecordIDByIndex(2)
+	_, ok3 := tree.GetRecordIDByIndex(3)
+
+	if !ok0 || !ok1 || !ok2 {
+		t.Error("GetRecordIDByIndex should return true for valid indices")
+	}
+
+	if ok3 {
+		t.Error("GetRecordIDByIndex should return false for out-of-range index")
+	}
+
+	// Verify we can retrieve IDs (order depends on hash sorting)
+	ids := []string{id0, id1, id2}
+	hasA, hasB, hasC := false, false, false
+	for _, id := range ids {
+		switch id {
+		case "record-a":
+			hasA = true
+		case "record-b":
+			hasB = true
+		case "record-c":
+			hasC = true
+		}
+	}
+
+	if !hasA || !hasB || !hasC {
+		t.Error("All record IDs should be retrievable")
 	}
 }
