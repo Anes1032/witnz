@@ -678,37 +678,8 @@ Witnz is **Audit-as-a-Service** - continuous database integrity verification wit
 | **Tamper Detection** | After the fact (weeks/months later) | Reactive (if someone checks logs) | Within database only | Immediate + External verification |
 | **Legal Standing** | High (Big 4 auditor signature) | Low (customer's own logs) | Medium (proprietary system) | High (neutral third party + auditor) |
 | **Deployment Complexity** | Minimal (auditor visits) | Medium (log management) | High (new database, migration) | Low (sidecar binary, no schema changes) |
-| **Cost** | Very high ($50K-$500K+ per audit) | Low (storage costs) | Medium-High (licensing, migration) | Medium ($99-$499/month per table) |
+| **Cost** | Very high ($50K-$500K+ per audit) | Low (storage costs) | Medium-High (licensing, migration) | Medium (External Node Server Cost) |
 | **Continuous Monitoring** | ❌ No | ⚠️ Possible but manual | ✅ Yes | ✅ Yes + External verification |
-| **Compliance Ready** | ✅ Yes (SOC2, ISO27001) | ⚠️ Partial (evidence only) | ⚠️ Partial (proprietary) | ✅ Yes (PDF certificates, auditor access) |
-
-#### Witnz's Unique Position
-
-**vs Traditional Manual Audit:**
-- Continuous real-time verification (not periodic sampling)
-- Pre-generated compliance evidence (30-50% audit time savings)
-- Neutral third-party attestation included
-
-**vs pgaudit + S3 Logs:**
-- Active verification, not passive logging
-- Independent third party (Witnz Cloud) provides legal attestation
-- Built-in auditor access portal
-
-**vs immudb / Amazon QLDB:**
-- No database migration required (works with existing PostgreSQL)
-- External verification layer (not just internal guarantees)
-- True third-party attestation (not self-attestation)
-
-**vs Hyperledger Fabric:**
-- 1000x lighter (15MB binary vs multi-GB infrastructure)
-- No blockchain complexity (simple B2B SaaS model)
-- Legal standing through known third parties (not computational proof)
-
-**Key Differentiators:**
-- **The Trinity Model**: Customer + Witnz Cloud + Auditor = three-party verification
-- **Legal standing**: Known, accountable third parties (not anonymous observers)
-- **Zero migration**: Works with existing PostgreSQL (RDS, Aurora, Cloud SQL, Supabase)
-- **Audit-ready**: PDF certificates, compliance reports, auditor portal included
 
 ## Consensus Verification Guarantees
 
