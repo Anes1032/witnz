@@ -171,6 +171,31 @@ node:
 - Healthcare access logs (HIPAA)
 - System event logs (SOC2, ISO27001)
 
+## Comparison with Other Solutions
+
+| Solution | Migration Required | Deployment | Trust Model |
+|----------|-------------------|------------|-------------|
+| **Witnz** | No | Sidecar binary (~15MB) | Distributed Raft nodes |
+| **pgaudit** | No | PostgreSQL extension | Single server logs |
+| **immudb** | Yes (full DB replacement) | Dedicated database | immudb server |
+| **Amazon QLDB** | Yes (full DB replacement) | AWS managed service | AWS infrastructure |
+| **Hyperledger Fabric** | Yes (new infrastructure) | Multi-GB blockchain | Consortium nodes |
+
+### vs pgaudit
+- pgaudit only logs queries; Witnz actively verifies data integrity
+- pgaudit logs can be tampered; Witnz uses distributed hash chains
+- Witnz provides real-time alerts on tampering
+
+### vs immudb / Amazon QLDB
+- No migration required - works with existing PostgreSQL
+- Same trust model (see Security Considerations below)
+- Significantly lower deployment cost
+
+### vs Hyperledger Fabric
+- 1000x lighter (~15MB vs multi-GB infrastructure)
+- Hours to deploy vs weeks/months
+- No blockchain complexity
+
 ## Architecture
 
 ### Tech Stack
@@ -227,31 +252,6 @@ make test-verify         # Merkle Root verification test
 - PostgreSQL Logical Replication integration
 - Slack webhook alerts
 - Multi-platform support (Linux, macOS, Windows)
-
-## Comparison with Other Solutions
-
-| Solution | Migration Required | Deployment | Trust Model |
-|----------|-------------------|------------|-------------|
-| **Witnz** | No | Sidecar binary (~15MB) | Distributed Raft nodes |
-| **pgaudit** | No | PostgreSQL extension | Single server logs |
-| **immudb** | Yes (full DB replacement) | Dedicated database | immudb server |
-| **Amazon QLDB** | Yes (full DB replacement) | AWS managed service | AWS infrastructure |
-| **Hyperledger Fabric** | Yes (new infrastructure) | Multi-GB blockchain | Consortium nodes |
-
-### vs pgaudit
-- pgaudit only logs queries; Witnz actively verifies data integrity
-- pgaudit logs can be tampered; Witnz uses distributed hash chains
-- Witnz provides real-time alerts on tampering
-
-### vs immudb / Amazon QLDB
-- No migration required - works with existing PostgreSQL
-- Same trust model (see Security Considerations below)
-- Significantly lower deployment cost
-
-### vs Hyperledger Fabric
-- 1000x lighter (~15MB vs multi-GB infrastructure)
-- Hours to deploy vs weeks/months
-- No blockchain complexity
 
 ## Security Considerations
 
