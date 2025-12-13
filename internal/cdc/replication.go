@@ -313,12 +313,37 @@ func (rc *ReplicationClient) tupleToMap(rel *pglogrepl.RelationMessage, tuple *p
 		switch col.DataType {
 		case 'n':
 			values[colName] = nil
+		case 'u':
+			values[colName] = "__unchanged__"
 		case 't':
+			values[colName] = string(col.Data)
+		case 'b':
+			oid := rel.Columns[i].DataType
+			if decoded, err := rc.decodeColumnValue(oid, col.Data); err == nil {
+				values[colName] = decoded
+			} else {
+				values[colName] = string(col.Data)
+			}
+		default:
 			values[colName] = string(col.Data)
 		}
 	}
 
 	return values
+}
+
+func (rc *ReplicationClient) decodeColumnValue(oid uint32, data []byte) (interface{}, error) {
+	dt, ok := rc.typeMap.TypeForOID(oid)
+	if !ok {
+		return string(data), nil
+	}
+
+	val, err := dt.Codec.DecodeDatabaseSQLValue(rc.typeMap, oid, pgtype.BinaryFormatCode, data)
+	if err != nil {
+		return string(data), nil
+	}
+
+	return val, nil
 }
 
 func (rc *ReplicationClient) extractPrimaryKey(rel *pglogrepl.RelationMessage, values map[string]interface{}) map[string]interface{} {

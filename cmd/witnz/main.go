@@ -173,10 +173,12 @@ var startCmd = &cobra.Command{
 		merkleVerifier := verify.NewMerkleVerifier(store, dbConnStr)
 
 		for _, tableConfig := range cfg.ProtectedTables {
-			merkleVerifier.AddTable(&verify.TableConfig{
+			if err := merkleVerifier.AddTable(&verify.TableConfig{
 				Name:           tableConfig.Name,
 				VerifyInterval: tableConfig.VerifyInterval,
-			})
+			}); err != nil {
+				return fmt.Errorf("invalid table configuration: %w", err)
+			}
 		}
 
 		if err := merkleVerifier.Start(ctx); err != nil {
