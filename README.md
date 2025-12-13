@@ -85,6 +85,12 @@ NOT: "X is the absolute truth"
 - Cost scales linearly with security level (add nodes, not computation)
 - No mining, no staking - just observation
 
+**Practical Security:**
+- Yes, 51% attack is theoretically possible (like any consensus system)
+- But: Far more robust than single-point security systems (traditional databases, centralized audit logs)
+- Additional protection: External anchoring (S3 Object Lock, blockchain) provides cryptographic proof against all-node compromise
+- Reality: Compromising majority of geographically distributed, independently operated nodes is economically infeasible at scale
+
 ## Overview for PostgreSQL Use Case
 
 Witnz provides multi-layered protection for PostgreSQL databases, detecting internal fraud and tampering during direct attacks on databases (RDS, Aurora, Cloud SQL, Supabase).
