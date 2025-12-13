@@ -4,23 +4,29 @@
 
 ## What is Witnz?
 
-Witnz is not just another security tool - it's a fundamental rethinking of how we verify consensus in distributed systems.
+Witnz is not a product - it's a **concept**. A fundamental rethinking of how we verify consensus in distributed systems.
+
+**The Idea:**
+What if we could verify the trustworthiness of any consensus system (Raft, BFT, Paxos) by simply having independent observers watch and report what they see? No computation, no complex protocols - just observation and democratic majority vote.
 
 **Important Philosophical Note:**
 > Witnz does NOT claim to verify "truth." Witnz verifies **consensus** - what the majority of nodes agree upon. If 1,000,001 nodes report "X" and 1 node reports "Y", Witnz reports that 1,000,001 nodes agree on X. This is **probabilistic reliability**, not absolute truth.
 
 **The Core Innovation:**
-- **Blockchain** uses **computation** to establish consensus → Heavy, slow, expensive
-- **Witnz** uses **numbers** (majority vote) to establish consensus → Lightweight, fast, cheap
+- **Traditional systems** create consensus (PoW, PoS, BFT) → Heavy, complex, expensive
+- **Witnz** verifies consensus via democratic observation → Lightweight, simple, cheap
+- Not a replacement - a new verification layer on top of existing consensus systems
 
 **The Architecture:**
 - **Phase 1 (Raft Feudalism)**: Fast internal consensus within your infrastructure
 - **Phase 2 (Witnz Democracy)**: External observer nodes verify consensus via majority vote
 - **Result**: Best of both worlds - speed + trustless verification
 
-## Beyond Security: A Platform for Distributed Consensus
+## Beyond Implementation: A Conceptual Framework
 
-PostgreSQL tampering detection is just the **first use case**. Witnz's lightweight architecture (15MB binary) enables countless applications:
+This repository implements Witnz for PostgreSQL tampering detection, but the **concept** applies to any system requiring consensus verification:
+
+**Potential Applications of the PoObs Concept:**
 
 - **Database Integrity**: PostgreSQL, MySQL, MongoDB tamper detection
 - **File Integrity**: S3, GCS, IPFS content verification
