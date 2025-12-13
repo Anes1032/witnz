@@ -158,16 +158,15 @@ func (v *MerkleVerifier) performFullVerification(ctx context.Context, tableName 
 }
 
 func (v *MerkleVerifier) performDetailedVerification(ctx context.Context, tableName, storedMerkleRoot string) error {
-	// Build expected tree from BoltDB (O(n))
-	expectedTree, boltdbIDs, err := v.buildTreeFromBoltDB(tableName)
+	// Build leaf maps only (skip tree construction for efficiency)
+	expectedLeafMap, boltdbIDs, err := v.buildLeafMapFromBoltDB(tableName)
 	if err != nil {
-		return fmt.Errorf("failed to build expected tree: %w", err)
+		return fmt.Errorf("failed to build expected leaf map: %w", err)
 	}
 
-	// Build actual tree from PostgreSQL (O(n))
-	actualTree, pgIDs, err := v.buildTreeFromPostgreSQL(ctx, tableName)
+	actualLeafMap, pgIDs, newMerkleRoot, err := v.buildLeafMapFromPostgreSQL(ctx, tableName)
 	if err != nil {
-		return fmt.Errorf("failed to build actual tree: %w", err)
+		return fmt.Errorf("failed to build actual leaf map: %w", err)
 	}
 
 	tamperedRecords := []string{}
@@ -190,10 +189,10 @@ func (v *MerkleVerifier) performDetailedVerification(ctx context.Context, tableN
 		}
 	}
 
-	// Use efficient tree comparison to find modified records
-	differingRecords := hash.CompareTreesDetailed(expectedTree, actualTree)
-	fmt.Printf("  Tree comparison found %d differing records (checked %d total)\n",
-		len(differingRecords), expectedTree.GetLeafCount())
+	// Direct map comparison (no tree building needed)
+	differingRecords := hash.CompareLeafMaps(expectedLeafMap, actualLeafMap)
+	fmt.Printf("  Map comparison found %d differing records (checked %d total)\n",
+		len(differingRecords), len(expectedLeafMap))
 
 	for _, diff := range differingRecords {
 		id := extractIDFromRecordID(diff.RecordID)
@@ -223,7 +222,79 @@ func (v *MerkleVerifier) performDetailedVerification(ctx context.Context, tableN
 	}
 
 	// No tampering detected - update checkpoint with current state
-	return v.createCheckpoint(ctx, tableName, actualTree.GetRoot(), actualTree.GetLeafCount())
+	return v.createCheckpoint(ctx, tableName, newMerkleRoot, len(actualLeafMap))
+}
+
+// buildLeafMapFromBoltDB builds only the leaf data map from BoltDB (no tree construction)
+func (v *MerkleVerifier) buildLeafMapFromBoltDB(tableName string) (map[string]string, map[string]bool, error) {
+	entries, err := v.storage.GetAllHashEntries(tableName)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	leafMap := make(map[string]string)
+	ids := make(map[string]bool)
+
+	for _, entry := range entries {
+		leafMap[entry.RecordID] = entry.DataHash
+		id := extractIDFromRecordID(entry.RecordID)
+		ids[id] = true
+	}
+
+	return leafMap, ids, nil
+}
+
+// buildLeafMapFromPostgreSQL builds the leaf data map from PostgreSQL (calculates Merkle root too)
+func (v *MerkleVerifier) buildLeafMapFromPostgreSQL(ctx context.Context, tableName string) (map[string]string, map[string]bool, string, error) {
+	conn, err := pgx.Connect(ctx, v.dbConnStr)
+	if err != nil {
+		return nil, nil, "", fmt.Errorf("failed to connect to database: %w", err)
+	}
+	defer conn.Close(ctx)
+
+	rows, err := conn.Query(ctx, fmt.Sprintf("SELECT * FROM %s ORDER BY id", quoteIdentifier(tableName)))
+	if err != nil {
+		return nil, nil, "", fmt.Errorf("failed to query table: %w", err)
+	}
+	defer rows.Close()
+
+	leafMap := make(map[string]string)
+	ids := make(map[string]bool)
+	builder := hash.NewMerkleTreeBuilder()
+
+	for rows.Next() {
+		fieldDescs := rows.FieldDescriptions()
+		values, err := rows.Values()
+		if err != nil {
+			return nil, nil, "", fmt.Errorf("failed to scan row: %w", err)
+		}
+
+		recordData := make(map[string]interface{})
+		var recordID string
+		for i, fd := range fieldDescs {
+			fieldName := string(fd.Name)
+			recordData[fieldName] = values[i]
+			if fieldName == "id" {
+				recordID = fmt.Sprintf("%v", values[i])
+			}
+		}
+
+		dataHash := hash.CalculateDataHash(recordData)
+		leafMap[recordID] = dataHash
+		ids[recordID] = true
+		builder.AddLeafHash(recordID, dataHash)
+	}
+
+	// Build tree only to get Merkle root for checkpoint
+	var merkleRoot string
+	if len(leafMap) > 0 {
+		if err := builder.Build(); err != nil {
+			return nil, nil, "", fmt.Errorf("failed to build tree: %w", err)
+		}
+		merkleRoot = builder.GetRoot()
+	}
+
+	return leafMap, ids, merkleRoot, nil
 }
 
 // buildTreeFromBoltDB builds a Merkle tree from BoltDB entries
