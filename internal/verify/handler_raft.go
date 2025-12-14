@@ -28,7 +28,7 @@ func (h *RaftHashChainHandler) HandleChange(event *cdc.ChangeEvent) error {
 	}
 
 	if event.Operation == cdc.OperationUpdate || event.Operation == cdc.OperationDelete {
-		return NewTamperingError(event.TableName, string(event.Operation), "append-only")
+		return NewTamperingError(event.TableName, string(event.Operation))
 	}
 
 	if h.raftNode == nil {
@@ -42,17 +42,11 @@ func (h *RaftHashChainHandler) HandleChange(event *cdc.ChangeEvent) error {
 		return nil
 	}
 
-	chain, ok := h.hashChains[event.TableName]
-	if !ok {
-		return fmt.Errorf("no hash chain for table: %s", event.TableName)
+	if _, ok := h.tableConfigs[event.TableName]; !ok {
+		return fmt.Errorf("table not configured: %s", event.TableName)
 	}
 
-	previousHash := chain.GetPreviousHash()
 	dataHash := calculateDataHash(event.NewData)
-	newHash, err := chain.Add(event.NewData)
-	if err != nil {
-		return fmt.Errorf("failed to add to hash chain: %w", err)
-	}
 
 	latestEntry, _ := h.storage.GetLatestHashEntry(event.TableName)
 	var seqNum uint64 = 1
@@ -65,8 +59,6 @@ func (h *RaftHashChainHandler) HandleChange(event *cdc.ChangeEvent) error {
 		TableName: event.TableName,
 		Data: map[string]interface{}{
 			"sequence_num":   float64(seqNum),
-			"hash":           newHash,
-			"previous_hash":  previousHash,
 			"data_hash":      dataHash,
 			"operation_type": string(event.Operation),
 			"record_id":      fmt.Sprintf("%v", event.PrimaryKey),

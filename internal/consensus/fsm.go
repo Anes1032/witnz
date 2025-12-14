@@ -54,8 +54,6 @@ func (f *FSM) applyHashChain(entry *LogEntry) interface{} {
 	hashEntry := &storage.HashEntry{
 		TableName:     entry.TableName,
 		SequenceNum:   uint64(entry.Data["sequence_num"].(float64)),
-		Hash:          entry.Data["hash"].(string),
-		PreviousHash:  entry.Data["previous_hash"].(string),
 		DataHash:      dataHash,
 		Timestamp:     entry.Timestamp,
 		OperationType: entry.Data["operation_type"].(string),

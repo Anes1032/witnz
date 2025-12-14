@@ -21,8 +21,6 @@ type Storage struct {
 type HashEntry struct {
 	TableName     string    `json:"table_name"`
 	SequenceNum   uint64    `json:"sequence_num"`
-	Hash          string    `json:"hash"`
-	PreviousHash  string    `json:"previous_hash"`
 	DataHash      string    `json:"data_hash"`
 	Timestamp     time.Time `json:"timestamp"`
 	OperationType string    `json:"operation_type"`
@@ -30,11 +28,14 @@ type HashEntry struct {
 }
 
 type MerkleCheckpoint struct {
-	TableName   string    `json:"table_name"`
-	SequenceNum uint64    `json:"sequence_num"`
-	MerkleRoot  string    `json:"merkle_root"`
-	Timestamp   time.Time `json:"timestamp"`
-	RecordCount int       `json:"record_count"`
+	TableName     string            `json:"table_name"`
+	SequenceNum   uint64            `json:"sequence_num"`
+	MerkleRoot    string            `json:"merkle_root"`
+	Timestamp     time.Time         `json:"timestamp"`
+	RecordCount   int               `json:"record_count"`
+	HashAlgorithm string            `json:"hash_algorithm"`
+	LeafMap       map[string]string `json:"leaf_map,omitempty"`
+	InternalNodes map[string]string `json:"internal_nodes,omitempty"`
 }
 
 func New(path string) (*Storage, error) {

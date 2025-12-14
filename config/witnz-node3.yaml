@@ -5,6 +5,9 @@ database:
   user: witnz
   password: witnz_dev_password
 
+hash:
+  algorithm: sha256
+
 node:
   id: node3
   bind_addr: node3:7000

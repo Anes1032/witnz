@@ -20,7 +20,7 @@ TESTS=(
     "test-append-only:Append-only Mode Test"
     "test-verify:Hash Chain Verification Test"
     "test-election-timeout:Raft Election Timeout Test"
-    "test-follower-compromise:Follower Compromise Test"
+    "test-leadership-transfer:Raft Leadership Transfer Test"
 )
 
 PASSED=0

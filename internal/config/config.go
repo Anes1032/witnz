@@ -12,6 +12,7 @@ type Config struct {
 	Database        DatabaseConfig         `mapstructure:"database"`
 	Node            NodeConfig             `mapstructure:"node"`
 	Raft            RaftConfig             `mapstructure:"raft"`
+	Hash            HashConfig             `mapstructure:"hash"`
 	ProtectedTables []ProtectedTableConfig `mapstructure:"protected_tables"`
 	Alerts          AlertsConfig           `mapstructure:"alerts"`
 }
@@ -37,6 +38,10 @@ type NodeConfig struct {
 type RaftConfig struct {
 	LeadershipTransferInterval string `mapstructure:"leadership_transfer_interval"`
 	FollowerAutoShutdown       bool   `mapstructure:"follower_auto_shutdown"`
+}
+
+type HashConfig struct {
+	Algorithm string `mapstructure:"algorithm"`
 }
 
 type ProtectedTableConfig struct {
@@ -100,6 +105,23 @@ func (c *Config) Validate() error {
 	}
 	if c.Node.DataDir == "" {
 		return fmt.Errorf("node.data_dir is required")
+	}
+
+	// Set default hash algorithm if not specified
+	if c.Hash.Algorithm == "" {
+		c.Hash.Algorithm = "sha256"
+	}
+
+	// Validate hash algorithm
+	validAlgorithms := map[string]bool{
+		"xxhash64":    true,
+		"xxhash128":   true,
+		"sha256":      true,
+		"blake2b_256": true,
+		"blake3":      true,
+	}
+	if !validAlgorithms[c.Hash.Algorithm] {
+		return fmt.Errorf("invalid hash algorithm: %s (valid options: xxhash64, xxhash128, sha256, blake2b_256, blake3)", c.Hash.Algorithm)
 	}
 
 	return nil

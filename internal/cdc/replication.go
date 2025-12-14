@@ -65,6 +65,16 @@ func (rc *ReplicationClient) CreateSlotIfNotExists(ctx context.Context) error {
 		return fmt.Errorf("not connected")
 	}
 
+	// Drop existing replication slot to discard pending WAL from previous session
+	// This prevents offline tampering from being processed as legitimate changes
+	err := pglogrepl.DropReplicationSlot(ctx, rc.conn, rc.config.SlotName, pglogrepl.DropReplicationSlotOptions{})
+	if err != nil {
+		// Ignore error if slot doesn't exist (first time startup)
+		fmt.Printf("Dropped existing replication slot (may not exist): %v\n", err)
+	} else {
+		fmt.Printf("Dropped existing replication slot %s to discard pending WAL\n", rc.config.SlotName)
+	}
+
 	result, err := pglogrepl.CreateReplicationSlot(
 		ctx,
 		rc.conn,
@@ -74,9 +84,6 @@ func (rc *ReplicationClient) CreateSlotIfNotExists(ctx context.Context) error {
 	)
 
 	if err != nil {
-		if pgErr, ok := err.(*pgconn.PgError); ok && pgErr.Code == "42710" {
-			return nil
-		}
 		return fmt.Errorf("failed to create replication slot: %w", err)
 	}
 

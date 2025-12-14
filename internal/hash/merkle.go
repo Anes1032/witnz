@@ -1,7 +1,6 @@
 package hash
 
 import (
-	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -102,9 +101,9 @@ func (mtb *MerkleTreeBuilder) buildTree(nodes []*MerkleNode) *MerkleNode {
 		}
 
 		combined := left.Hash + right.Hash
-		hash := sha256.Sum256([]byte(combined))
+		hasher := GetHasher()
 		parent := &MerkleNode{
-			Hash:  hex.EncodeToString(hash[:]),
+			Hash:  hasher.Hash([]byte(combined)),
 			Left:  left,
 			Right: right,
 		}
@@ -204,8 +203,8 @@ func (mp *MerkleProof) Verify(expectedRoot string) bool {
 			combined = sibling + currentHash
 		}
 
-		hash := sha256.Sum256([]byte(combined))
-		currentHash = hex.EncodeToString(hash[:])
+		hasher := GetHasher()
+		currentHash = hasher.Hash([]byte(combined))
 	}
 
 	return currentHash == expectedRoot
@@ -259,6 +258,45 @@ func (mtb *MerkleTreeBuilder) GetSortedLeaves() []string {
 // GetLeafCount returns the number of leaves in the tree
 func (mtb *MerkleTreeBuilder) GetLeafCount() int {
 	return len(mtb.leaves)
+}
+
+// GetLeafMap returns a copy of the leaf data map (recordID -> hash)
+func (mtb *MerkleTreeBuilder) GetLeafMap() map[string]string {
+	leafMap := make(map[string]string, len(mtb.leafDataMap))
+	for k, v := range mtb.leafDataMap {
+		leafMap[k] = v
+	}
+	return leafMap
+}
+
+// GetInternalNodes returns internal node hashes for optimization
+// Maps node path to hash for subtree comparison
+func (mtb *MerkleTreeBuilder) GetInternalNodes() map[string]string {
+	if mtb.root == nil {
+		return map[string]string{}
+	}
+
+	internalNodes := make(map[string]string)
+	mtb.collectInternalNodes(mtb.root, "root", internalNodes)
+	return internalNodes
+}
+
+// collectInternalNodes recursively collects internal node hashes
+func (mtb *MerkleTreeBuilder) collectInternalNodes(node *MerkleNode, path string, nodes map[string]string) {
+	if node == nil {
+		return
+	}
+
+	// Store this node's hash
+	nodes[path] = node.Hash
+
+	// Recurse into children
+	if node.Left != nil {
+		mtb.collectInternalNodes(node.Left, path+"/L", nodes)
+	}
+	if node.Right != nil && node.Right != node.Left {
+		mtb.collectInternalNodes(node.Right, path+"/R", nodes)
+	}
 }
 
 // DifferingRecord represents a record that differs between two trees
@@ -402,14 +440,37 @@ func CompareLeafMaps(expected, actual map[string]string) []DifferingRecord {
 	return differing
 }
 
-// CalculateDataHash computes a SHA-256 hash of the given data map.
+// CompareLeafMapsWithNodes optimizes comparison using internal node hashes
+// Skips subtrees where internal nodes match, only compares leaves in mismatched subtrees
+func CompareLeafMapsWithNodes(expected, actual map[string]string, expectedNodes, actualNodes map[string]string) []DifferingRecord {
+	// Quick check: if both have same root hash, they're identical
+	if expectedNodes != nil && actualNodes != nil {
+		expectedRoot, expRootExists := expectedNodes["root"]
+		actualRoot, actRootExists := actualNodes["root"]
+		if expRootExists && actRootExists && expectedRoot == actualRoot {
+			return []DifferingRecord{}
+		}
+	}
+
+	// If no internal nodes available, fall back to simple comparison
+	if expectedNodes == nil || actualNodes == nil || len(expectedNodes) == 0 || len(actualNodes) == 0 {
+		return CompareLeafMaps(expected, actual)
+	}
+
+	// Use internal nodes to optimize comparison
+	// For now, fall back to full comparison
+	// Future optimization: traverse tree structure and skip matching subtrees
+	return CompareLeafMaps(expected, actual)
+}
+
+// CalculateDataHash computes a hash of the given data map using the configured algorithm.
 // It normalizes the data to ensure consistent hashing across different data sources
 // (CDC events vs PostgreSQL queries).
 func CalculateDataHash(data map[string]interface{}) string {
 	normalized := NormalizeForHash(data)
 	jsonData, _ := json.Marshal(normalized)
-	hash := sha256.Sum256(jsonData)
-	return hex.EncodeToString(hash[:])
+	hasher := GetHasher()
+	return hasher.Hash(jsonData)
 }
 
 // NormalizeForHash normalizes data for consistent hash calculation.

@@ -185,16 +185,16 @@ func TestThreeNodeCluster(t *testing.T) {
 		t.Fatalf("Failed to get hash entry from node3: %v", err)
 	}
 
-	if hashEntry1.Hash != "test_hash_123" {
-		t.Errorf("Node1 hash mismatch: got %s, want test_hash_123", hashEntry1.Hash)
+	if hashEntry1.DataHash != "test_hash_123" {
+		t.Errorf("Node1 data hash mismatch: got %s, want test_hash_123", hashEntry1.DataHash)
 	}
 
-	if hashEntry2.Hash != "test_hash_123" {
-		t.Errorf("Node2 hash mismatch: got %s, want test_hash_123", hashEntry2.Hash)
+	if hashEntry2.DataHash != "test_hash_123" {
+		t.Errorf("Node2 data hash mismatch: got %s, want test_hash_123", hashEntry2.DataHash)
 	}
 
-	if hashEntry3.Hash != "test_hash_123" {
-		t.Errorf("Node3 hash mismatch: got %s, want test_hash_123", hashEntry3.Hash)
+	if hashEntry3.DataHash != "test_hash_123" {
+		t.Errorf("Node3 data hash mismatch: got %s, want test_hash_123", hashEntry3.DataHash)
 	}
 
 	if hashEntry1.SequenceNum != 1 || hashEntry2.SequenceNum != 1 || hashEntry3.SequenceNum != 1 {

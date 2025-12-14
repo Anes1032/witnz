@@ -61,9 +61,9 @@ LOGS=$(docker-compose logs --since 15s)
 
 echo ""
 echo "TEST CASE 1: UPDATE Detection (id=2)"
-if echo "$LOGS" | grep -q "seq=2.*id=2"; then
+if echo "$LOGS" | grep -q "data modified.*id=2"; then
     echo -e "${GREEN}✓ PASSED: Detected UPDATE tampering on id=2${NC}"
-    echo "$LOGS" | grep "TAMPERING.*seq=2.*id=2" | head -1
+    echo "$LOGS" | grep "data modified.*id=2" | head -1
 else
     echo -e "${RED}✗ FAILED: UPDATE tampering on id=2 NOT detected${NC}"
 fi
@@ -79,9 +79,9 @@ fi
 
 echo ""
 echo "TEST CASE 3: DELETE+INSERT Detection (id=4)"
-if echo "$LOGS" | grep -q "seq=4.*id=4"; then
+if echo "$LOGS" | grep -q "data modified.*id=4"; then
     echo -e "${GREEN}✓ PASSED: Detected DELETE+INSERT tampering on id=4 (hash mismatch)${NC}"
-    echo "$LOGS" | grep "TAMPERING.*seq=4.*id=4" | head -1
+    echo "$LOGS" | grep "data modified.*id=4" | head -1
 else
     echo -e "${RED}✗ FAILED: DELETE+INSERT tampering on id=4 NOT detected${NC}"
 fi

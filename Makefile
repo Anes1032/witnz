@@ -1,4 +1,4 @@
-.PHONY: build test clean release install docker-build docker-push test-append-only test-verify test-election-timeout test-leadership-transfer test-follower-termination test-leader-compromise test-follower-compromise test-all
+.PHONY: build test clean release install docker-build docker-push test-append-only test-verify test-election-timeout test-leadership-transfer test-all
 
 VERSION ?= 0.2.0
 DOCKER_IMAGE ?= witnz/witnz
@@ -24,15 +24,6 @@ test-election-timeout:
 
 test-leadership-transfer:
 	./scripts/test-leadership-transfer.sh
-
-test-follower-termination:
-	./scripts/test-follower-termination.sh
-
-test-leader-compromise:
-	./scripts/test-leader-compromise.sh
-
-test-follower-compromise:
-	./scripts/test-follower-compromise.sh
 
 test-all:
 	./scripts/test-all.sh

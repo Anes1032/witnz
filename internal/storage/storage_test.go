@@ -24,8 +24,7 @@ func TestStorage(t *testing.T) {
 		entry := &HashEntry{
 			TableName:     "test_table",
 			SequenceNum:   1,
-			Hash:          "abcd1234",
-			PreviousHash:  "0000",
+			DataHash:      "abcd1234",
 			Timestamp:     time.Now(),
 			OperationType: "INSERT",
 			RecordID:      "123",
@@ -40,15 +39,15 @@ func TestStorage(t *testing.T) {
 			t.Fatalf("GetHashEntry failed: %v", err)
 		}
 
-		if retrieved.Hash != entry.Hash {
-			t.Errorf("Expected hash %s, got %s", entry.Hash, retrieved.Hash)
+		if retrieved.DataHash != entry.DataHash {
+			t.Errorf("Expected data hash %s, got %s", entry.DataHash, retrieved.DataHash)
 		}
 	})
 
 	t.Run("GetLatestHashEntry", func(t *testing.T) {
 		entries := []*HashEntry{
-			{TableName: "test_table", SequenceNum: 2, Hash: "hash2", Timestamp: time.Now()},
-			{TableName: "test_table", SequenceNum: 3, Hash: "hash3", Timestamp: time.Now()},
+			{TableName: "test_table", SequenceNum: 2, DataHash: "hash2", Timestamp: time.Now()},
+			{TableName: "test_table", SequenceNum: 3, DataHash: "hash3", Timestamp: time.Now()},
 		}
 
 		for _, e := range entries {

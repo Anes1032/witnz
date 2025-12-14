@@ -20,7 +20,6 @@ type TableConfig struct {
 
 type HashChainHandler struct {
 	storage      *storage.Storage
-	hashChains   map[string]*hash.HashChain
 	tableConfigs map[string]*TableConfig
 	alertManager *alert.Manager
 }
@@ -28,7 +27,6 @@ type HashChainHandler struct {
 func NewHashChainHandler(store *storage.Storage) *HashChainHandler {
 	return &HashChainHandler{
 		storage:      store,
-		hashChains:   make(map[string]*hash.HashChain),
 		tableConfigs: make(map[string]*TableConfig),
 	}
 }
@@ -43,14 +41,6 @@ func (h *HashChainHandler) AddTable(config *TableConfig) error {
 	}
 
 	h.tableConfigs[config.Name] = config
-
-	latestEntry, err := h.storage.GetLatestHashEntry(config.Name)
-	if err != nil {
-		h.hashChains[config.Name] = hash.NewHashChain("genesis")
-	} else {
-		h.hashChains[config.Name] = hash.NewHashChain(latestEntry.Hash)
-	}
-
 	return nil
 }
 
@@ -60,26 +50,11 @@ func (h *HashChainHandler) HandleChange(event *cdc.ChangeEvent) error {
 		return nil
 	}
 
-	// Reject UPDATE/DELETE on protected tables
 	if event.Operation == cdc.OperationUpdate || event.Operation == cdc.OperationDelete {
-		return NewTamperingError(event.TableName, string(event.Operation), "append-only")
+		return NewTamperingError(event.TableName, string(event.Operation))
 	}
 
-	// Process INSERT
-	chain, ok := h.hashChains[event.TableName]
-	if !ok {
-		return fmt.Errorf("no hash chain for table: %s", event.TableName)
-	}
-
-	previousHash := chain.GetPreviousHash()
-
-	// Calculate data hash of the record content
 	dataHash := calculateDataHash(event.NewData)
-
-	newHash, err := chain.Add(event.NewData)
-	if err != nil {
-		return fmt.Errorf("failed to add to hash chain: %w", err)
-	}
 
 	latestEntry, _ := h.storage.GetLatestHashEntry(event.TableName)
 	var seqNum uint64 = 1
@@ -90,8 +65,6 @@ func (h *HashChainHandler) HandleChange(event *cdc.ChangeEvent) error {
 	entry := &storage.HashEntry{
 		TableName:     event.TableName,
 		SequenceNum:   seqNum,
-		Hash:          newHash,
-		PreviousHash:  previousHash,
 		DataHash:      dataHash,
 		Timestamp:     time.Now(),
 		OperationType: string(event.Operation),
@@ -101,31 +74,18 @@ func (h *HashChainHandler) HandleChange(event *cdc.ChangeEvent) error {
 	return h.storage.SaveHashEntry(entry)
 }
 
+// VerifyHashChain validates that hash entries exist for the table
+// Hash chain verification is no longer needed as we only store DataHash
 func (h *HashChainHandler) VerifyHashChain(tableName string) error {
 	_, ok := h.tableConfigs[tableName]
 	if !ok {
 		return fmt.Errorf("table not configured: %s", tableName)
 	}
 
-	chain := hash.NewHashChain("genesis")
-	seqNum := uint64(1)
-
-	for {
-		entry, err := h.storage.GetHashEntry(tableName, seqNum)
-		if err != nil {
-			break
-		}
-
-		if entry.PreviousHash != chain.GetPreviousHash() {
-			if h.alertManager != nil {
-				_ = h.alertManager.SendHashChainBrokenAlert(tableName, seqNum, chain.GetPreviousHash(), entry.PreviousHash)
-			}
-			return fmt.Errorf("hash chain broken at sequence %d: expected previous %s, got %s",
-				seqNum, chain.GetPreviousHash(), entry.PreviousHash)
-		}
-
-		chain.SetPreviousHash(entry.Hash)
-		seqNum++
+	// Check that entries exist
+	_, err := h.storage.GetLatestHashEntry(tableName)
+	if err != nil {
+		return fmt.Errorf("no hash entries found for table %s", tableName)
 	}
 
 	return nil

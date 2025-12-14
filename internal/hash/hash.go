@@ -2,11 +2,131 @@ package hash
 
 import (
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"sort"
+	"sync"
+
+	"github.com/cespare/xxhash/v2"
+	"github.com/zeebo/blake3"
+	"golang.org/x/crypto/blake2b"
 )
+
+var (
+	globalHasher Hasher
+	hasherMu     sync.RWMutex
+)
+
+// Hasher interface for different hash algorithms
+type Hasher interface {
+	Hash(data []byte) string
+	Name() string
+}
+
+// Initialize sets the global hash algorithm
+func Initialize(algorithm string) error {
+	var h Hasher
+	switch algorithm {
+	case "xxhash64":
+		h = &xxHash64Hasher{}
+	case "xxhash128":
+		h = &xxHash128Hasher{}
+	case "sha256":
+		h = &sha256Hasher{}
+	case "blake2b_256":
+		h = &blake2b256Hasher{}
+	case "blake3":
+		h = &blake3Hasher{}
+	default:
+		return fmt.Errorf("unsupported hash algorithm: %s", algorithm)
+	}
+
+	hasherMu.Lock()
+	globalHasher = h
+	hasherMu.Unlock()
+	return nil
+}
+
+// GetHasher returns the current global hasher
+func GetHasher() Hasher {
+	hasherMu.RLock()
+	defer hasherMu.RUnlock()
+	if globalHasher == nil {
+		// Default to SHA256 if not initialized
+		return &sha256Hasher{}
+	}
+	return globalHasher
+}
+
+// xxHash64 implementation
+type xxHash64Hasher struct{}
+
+func (h *xxHash64Hasher) Hash(data []byte) string {
+	hash := xxhash.Sum64(data)
+	buf := make([]byte, 8)
+	binary.BigEndian.PutUint64(buf, hash)
+	return hex.EncodeToString(buf)
+}
+
+func (h *xxHash64Hasher) Name() string {
+	return "xxhash64"
+}
+
+// xxHash128 implementation
+type xxHash128Hasher struct{}
+
+func (h *xxHash128Hasher) Hash(data []byte) string {
+	digest := xxhash.New()
+	digest.Write(data)
+	hash := digest.Sum(nil)
+	// xxhash returns 8 bytes, we'll compute it twice with different seeds for 16 bytes
+	digest2 := xxhash.New()
+	digest2.Write(append([]byte{0x01}, data...))
+	hash2 := digest2.Sum(nil)
+	return hex.EncodeToString(hash) + hex.EncodeToString(hash2)
+}
+
+func (h *xxHash128Hasher) Name() string {
+	return "xxhash128"
+}
+
+// SHA256 implementation
+type sha256Hasher struct{}
+
+func (h *sha256Hasher) Hash(data []byte) string {
+	hash := sha256.Sum256(data)
+	return hex.EncodeToString(hash[:])
+}
+
+func (h *sha256Hasher) Name() string {
+	return "sha256"
+}
+
+// BLAKE2b-256 implementation
+type blake2b256Hasher struct{}
+
+func (h *blake2b256Hasher) Hash(data []byte) string {
+	hash := blake2b.Sum256(data)
+	return hex.EncodeToString(hash[:])
+}
+
+func (h *blake2b256Hasher) Name() string {
+	return "blake2b_256"
+}
+
+// BLAKE3 implementation
+type blake3Hasher struct{}
+
+func (h *blake3Hasher) Hash(data []byte) string {
+	hash := blake3.Sum256(data)
+	return hex.EncodeToString(hash[:])
+}
+
+func (h *blake3Hasher) Name() string {
+	return "blake3"
+}
 
 func Calculate(data interface{}) (string, error) {
 	jsonData, err := json.Marshal(data)
@@ -14,13 +134,13 @@ func Calculate(data interface{}) (string, error) {
 		return "", fmt.Errorf("failed to marshal data: %w", err)
 	}
 
-	hash := sha256.Sum256(jsonData)
-	return hex.EncodeToString(hash[:]), nil
+	hasher := GetHasher()
+	return hasher.Hash(jsonData), nil
 }
 
 func CalculateString(data string) string {
-	hash := sha256.Sum256([]byte(data))
-	return hex.EncodeToString(hash[:])
+	hasher := GetHasher()
+	return hasher.Hash([]byte(data))
 }
 
 type HashChain struct {

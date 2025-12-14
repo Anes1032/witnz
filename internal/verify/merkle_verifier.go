@@ -97,9 +97,9 @@ func (v *MerkleVerifier) runPeriodicVerification(ctx context.Context, tableName 
 }
 
 func (v *MerkleVerifier) VerifyTable(ctx context.Context, tableName string) error {
-	latestCheckpoint, err := v.storage.GetLatestMerkleCheckpoint(tableName)
+	actualMerkleRoot, pgRecordCount, pgTree, err := v.calculateCurrentMerkleRootFromPG(ctx, tableName)
 	if err != nil {
-		return v.performFullVerification(ctx, tableName)
+		return fmt.Errorf("failed to calculate actual Merkle Root from PostgreSQL: %w", err)
 	}
 
 	expectedMerkleRoot, boltdbRecordCount, err := v.calculateMerkleRootFromBoltDB(tableName)
@@ -107,58 +107,31 @@ func (v *MerkleVerifier) VerifyTable(ctx context.Context, tableName string) erro
 		return fmt.Errorf("failed to calculate expected Merkle Root from BoltDB: %w", err)
 	}
 
-	actualMerkleRoot, pgRecordCount, err := v.calculateCurrentMerkleRoot(ctx, tableName)
-	if err != nil {
-		return fmt.Errorf("failed to calculate actual Merkle Root from PostgreSQL: %w", err)
+	if boltdbRecordCount == 0 {
+		fmt.Printf("No hash entries in BoltDB for %s, creating initial checkpoint...\n", tableName)
+		return v.createCheckpointWithTree(tableName, actualMerkleRoot, pgRecordCount, pgTree)
 	}
 
 	if actualMerkleRoot == expectedMerkleRoot && pgRecordCount == boltdbRecordCount {
 		fmt.Printf("✅ Merkle Root match for %s (PostgreSQL matches BoltDB)\n", tableName)
-		return v.createCheckpoint(ctx, tableName, actualMerkleRoot, pgRecordCount)
+		return v.createCheckpointWithTree(tableName, actualMerkleRoot, pgRecordCount, pgTree)
 	}
 
 	fmt.Printf("⚠️  Merkle Root mismatch for %s, performing detailed verification...\n", tableName)
-	fmt.Printf("   Expected (BoltDB): %s (%d records)\n", expectedMerkleRoot[:16]+"...", boltdbRecordCount)
-	fmt.Printf("   Actual (PostgreSQL): %s (%d records)\n", actualMerkleRoot[:16]+"...", pgRecordCount)
-	return v.performDetailedVerification(ctx, tableName, latestCheckpoint.MerkleRoot)
+	expectedShort := expectedMerkleRoot
+	if len(expectedShort) > 16 {
+		expectedShort = expectedShort[:16] + "..."
+	}
+	actualShort := actualMerkleRoot
+	if len(actualShort) > 16 {
+		actualShort = actualShort[:16] + "..."
+	}
+	fmt.Printf("   Expected (BoltDB): %s (%d records)\n", expectedShort, boltdbRecordCount)
+	fmt.Printf("   Actual (PostgreSQL): %s (%d records)\n", actualShort, pgRecordCount)
+	return v.performDetailedVerification(ctx, tableName)
 }
 
-func (v *MerkleVerifier) performFullVerification(ctx context.Context, tableName string) error {
-	currentMerkleRoot, recordCount, err := v.calculateCurrentMerkleRoot(ctx, tableName)
-	if err != nil {
-		return fmt.Errorf("failed to calculate Merkle Root: %w", err)
-	}
-
-	entries, err := v.storage.GetAllHashEntries(tableName)
-	if err != nil {
-		return fmt.Errorf("failed to get hash entries: %w", err)
-	}
-
-	if len(entries) == 0 {
-		return v.createCheckpoint(ctx, tableName, currentMerkleRoot, recordCount)
-	}
-
-	builder := hash.NewMerkleTreeBuilder()
-	for _, entry := range entries {
-		builder.AddLeafHash(entry.RecordID, entry.DataHash)
-	}
-
-	if err := builder.Build(); err != nil {
-		return fmt.Errorf("failed to build Merkle Tree: %w", err)
-	}
-
-	storedMerkleRoot := builder.GetRoot()
-
-	if currentMerkleRoot == storedMerkleRoot {
-		fmt.Printf("✅ Full verification passed for %s\n", tableName)
-		return v.createCheckpoint(ctx, tableName, currentMerkleRoot, recordCount)
-	}
-
-	return v.performDetailedVerification(ctx, tableName, storedMerkleRoot)
-}
-
-func (v *MerkleVerifier) performDetailedVerification(ctx context.Context, tableName, storedMerkleRoot string) error {
-	// Build leaf maps only (skip tree construction for efficiency)
+func (v *MerkleVerifier) performDetailedVerification(ctx context.Context, tableName string) error {
 	expectedLeafMap, boltdbIDs, err := v.buildLeafMapFromBoltDB(tableName)
 	if err != nil {
 		return fmt.Errorf("failed to build expected leaf map: %w", err)
@@ -170,41 +143,89 @@ func (v *MerkleVerifier) performDetailedVerification(ctx context.Context, tableN
 	}
 
 	tamperedRecords := []string{}
+	phantomInserts := []string{}
+	deletedRecords := []string{}
 
-	// Check for phantom inserts (records in PostgreSQL not in BoltDB)
+	// Identify Phantom Inserts (in PostgreSQL but not in BoltDB)
 	for id := range pgIDs {
 		if !boltdbIDs[id] {
+			phantomInserts = append(phantomInserts, id)
 			msg := fmt.Sprintf("found extra record in DB not in hash chain (Phantom Insert): id=%s", id)
 			tamperedRecords = append(tamperedRecords, msg)
 			fmt.Printf("  TAMPERING: %s\n", msg)
 		}
 	}
 
-	// Check for deleted records (records in BoltDB not in PostgreSQL)
+	// Identify Deleted Records (in BoltDB but not in PostgreSQL)
 	for id := range boltdbIDs {
 		if !pgIDs[id] {
+			deletedRecords = append(deletedRecords, id)
 			msg := fmt.Sprintf("record deleted: id=%s", id)
 			tamperedRecords = append(tamperedRecords, msg)
 			fmt.Printf("  TAMPERING: %s\n", msg)
 		}
 	}
 
-	// Direct map comparison (no tree building needed)
-	differingRecords := hash.CompareLeafMaps(expectedLeafMap, actualLeafMap)
-	fmt.Printf("  Map comparison found %d differing records (checked %d total)\n",
-		len(differingRecords), len(expectedLeafMap))
+	// Create adjusted maps to detect data modifications
+	// Remove phantom inserts from actual map for comparison
+	adjustedActualMap := make(map[string]string)
+	for id, hash := range actualLeafMap {
+		isPhantom := false
+		for _, phantomID := range phantomInserts {
+			if id == phantomID {
+				isPhantom = true
+				break
+			}
+		}
+		if !isPhantom {
+			adjustedActualMap[id] = hash
+		}
+	}
+
+	// Remove deleted records from expected map for comparison
+	adjustedExpectedMap := make(map[string]string)
+	for id, hash := range expectedLeafMap {
+		isDeleted := false
+		for _, deletedID := range deletedRecords {
+			if id == deletedID {
+				isDeleted = true
+				break
+			}
+		}
+		if !isDeleted {
+			adjustedExpectedMap[id] = hash
+		}
+	}
+
+	// Compare adjusted maps to find data modifications
+	differingRecords := hash.CompareLeafMaps(adjustedExpectedMap, adjustedActualMap)
 
 	for _, diff := range differingRecords {
-		id := extractIDFromRecordID(diff.RecordID)
+		id := diff.RecordID
 
-		// Skip if already reported as insert/delete
-		if !boltdbIDs[id] || !pgIDs[id] {
+		// Skip records that are phantom inserts or deleted
+		isPhantomOrDeleted := false
+		for _, phantomID := range phantomInserts {
+			if id == phantomID {
+				isPhantomOrDeleted = true
+				break
+			}
+		}
+		for _, deletedID := range deletedRecords {
+			if id == deletedID {
+				isPhantomOrDeleted = true
+				break
+			}
+		}
+
+		if isPhantomOrDeleted {
 			continue
 		}
 
 		if diff.Type == "modified" {
+			hashLen := min(16, len(diff.ExpectedHash), len(diff.ActualHash))
 			msg := fmt.Sprintf("data modified: id=%s, expected hash=%s..., actual hash=%s...",
-				id, diff.ExpectedHash[:16], diff.ActualHash[:16])
+				id, diff.ExpectedHash[:hashLen], diff.ActualHash[:hashLen])
 			tamperedRecords = append(tamperedRecords, msg)
 			fmt.Printf("  TAMPERING: %s\n", msg)
 		}
@@ -221,11 +242,9 @@ func (v *MerkleVerifier) performDetailedVerification(ctx context.Context, tableN
 		return fmt.Errorf("%s", errMsg)
 	}
 
-	// No tampering detected - update checkpoint with current state
-	return v.createCheckpoint(ctx, tableName, newMerkleRoot, len(actualLeafMap))
+	return v.createCheckpoint(tableName, newMerkleRoot, len(actualLeafMap))
 }
 
-// buildLeafMapFromBoltDB builds only the leaf data map from BoltDB (no tree construction)
 func (v *MerkleVerifier) buildLeafMapFromBoltDB(tableName string) (map[string]string, map[string]bool, error) {
 	entries, err := v.storage.GetAllHashEntries(tableName)
 	if err != nil {
@@ -236,15 +255,14 @@ func (v *MerkleVerifier) buildLeafMapFromBoltDB(tableName string) (map[string]st
 	ids := make(map[string]bool)
 
 	for _, entry := range entries {
-		leafMap[entry.RecordID] = entry.DataHash
 		id := extractIDFromRecordID(entry.RecordID)
+		leafMap[id] = entry.DataHash
 		ids[id] = true
 	}
 
 	return leafMap, ids, nil
 }
 
-// buildLeafMapFromPostgreSQL builds the leaf data map from PostgreSQL (calculates Merkle root too)
 func (v *MerkleVerifier) buildLeafMapFromPostgreSQL(ctx context.Context, tableName string) (map[string]string, map[string]bool, string, error) {
 	conn, err := pgx.Connect(ctx, v.dbConnStr)
 	if err != nil {
@@ -270,22 +288,24 @@ func (v *MerkleVerifier) buildLeafMapFromPostgreSQL(ctx context.Context, tableNa
 		}
 
 		recordData := make(map[string]interface{})
-		var recordID string
+		var idValue string
 		for i, fd := range fieldDescs {
 			fieldName := string(fd.Name)
 			recordData[fieldName] = values[i]
 			if fieldName == "id" {
-				recordID = fmt.Sprintf("%v", values[i])
+				idValue = fmt.Sprintf("%v", values[i])
 			}
 		}
 
 		dataHash := hash.CalculateDataHash(recordData)
-		leafMap[recordID] = dataHash
-		ids[recordID] = true
+		leafMap[idValue] = dataHash
+		ids[idValue] = true
+
+		// For Merkle tree construction, use full record representation
+		recordID := fmt.Sprintf("%v", recordData)
 		builder.AddLeafHash(recordID, dataHash)
 	}
 
-	// Build tree only to get Merkle root for checkpoint
 	var merkleRoot string
 	if len(leafMap) > 0 {
 		if err := builder.Build(); err != nil {
@@ -297,90 +317,16 @@ func (v *MerkleVerifier) buildLeafMapFromPostgreSQL(ctx context.Context, tableNa
 	return leafMap, ids, merkleRoot, nil
 }
 
-// buildTreeFromBoltDB builds a Merkle tree from BoltDB entries
-func (v *MerkleVerifier) buildTreeFromBoltDB(tableName string) (*hash.MerkleTreeBuilder, map[string]bool, error) {
-	entries, err := v.storage.GetAllHashEntries(tableName)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	builder := hash.NewMerkleTreeBuilder()
-	ids := make(map[string]bool)
-
-	for _, entry := range entries {
-		builder.AddLeafHash(entry.RecordID, entry.DataHash)
-		id := extractIDFromRecordID(entry.RecordID)
-		ids[id] = true
-	}
-
-	if len(entries) > 0 {
-		if err := builder.Build(); err != nil {
-			return nil, nil, err
-		}
-	}
-
-	return builder, ids, nil
-}
-
-// buildTreeFromPostgreSQL builds a Merkle tree from PostgreSQL data
-func (v *MerkleVerifier) buildTreeFromPostgreSQL(ctx context.Context, tableName string) (*hash.MerkleTreeBuilder, map[string]bool, error) {
+func (v *MerkleVerifier) calculateCurrentMerkleRootFromPG(ctx context.Context, tableName string) (string, int, *hash.MerkleTreeBuilder, error) {
 	conn, err := pgx.Connect(ctx, v.dbConnStr)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to connect to database: %w", err)
+		return "", 0, nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 	defer conn.Close(ctx)
 
 	rows, err := conn.Query(ctx, fmt.Sprintf("SELECT * FROM %s ORDER BY id", quoteIdentifier(tableName)))
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to query table: %w", err)
-	}
-	defer rows.Close()
-
-	builder := hash.NewMerkleTreeBuilder()
-	ids := make(map[string]bool)
-
-	for rows.Next() {
-		fieldDescs := rows.FieldDescriptions()
-		values, err := rows.Values()
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to scan row: %w", err)
-		}
-
-		recordData := make(map[string]interface{})
-		var recordID string
-		for i, fd := range fieldDescs {
-			fieldName := string(fd.Name)
-			recordData[fieldName] = values[i]
-			if fieldName == "id" {
-				recordID = fmt.Sprintf("%v", values[i])
-			}
-		}
-
-		if err := builder.AddLeaf(recordID, recordData); err != nil {
-			return nil, nil, fmt.Errorf("failed to add leaf: %w", err)
-		}
-		ids[recordID] = true
-	}
-
-	if len(ids) > 0 {
-		if err := builder.Build(); err != nil {
-			return nil, nil, fmt.Errorf("failed to build tree: %w", err)
-		}
-	}
-
-	return builder, ids, nil
-}
-
-func (v *MerkleVerifier) calculateCurrentMerkleRoot(ctx context.Context, tableName string) (string, int, error) {
-	conn, err := pgx.Connect(ctx, v.dbConnStr)
-	if err != nil {
-		return "", 0, fmt.Errorf("failed to connect to database: %w", err)
-	}
-	defer conn.Close(ctx)
-
-	rows, err := conn.Query(ctx, fmt.Sprintf("SELECT * FROM %s ORDER BY id", quoteIdentifier(tableName)))
-	if err != nil {
-		return "", 0, fmt.Errorf("failed to query table: %w", err)
+		return "", 0, nil, fmt.Errorf("failed to query table: %w", err)
 	}
 	defer rows.Close()
 
@@ -391,7 +337,7 @@ func (v *MerkleVerifier) calculateCurrentMerkleRoot(ctx context.Context, tableNa
 		fieldDescs := rows.FieldDescriptions()
 		values, err := rows.Values()
 		if err != nil {
-			return "", 0, fmt.Errorf("failed to scan row: %w", err)
+			return "", 0, nil, fmt.Errorf("failed to scan row: %w", err)
 		}
 
 		recordData := make(map[string]interface{})
@@ -405,23 +351,31 @@ func (v *MerkleVerifier) calculateCurrentMerkleRoot(ctx context.Context, tableNa
 		}
 
 		if err := builder.AddLeaf(recordID, recordData); err != nil {
-			return "", 0, fmt.Errorf("failed to add leaf: %w", err)
+			return "", 0, nil, fmt.Errorf("failed to add leaf: %w", err)
 		}
 		recordCount++
 	}
 
 	if recordCount == 0 {
-		return "", 0, nil
+		return "", 0, nil, nil
 	}
 
 	if err := builder.Build(); err != nil {
-		return "", 0, fmt.Errorf("failed to build tree: %w", err)
+		return "", 0, nil, fmt.Errorf("failed to build tree: %w", err)
 	}
 
-	return builder.GetRoot(), recordCount, nil
+	return builder.GetRoot(), recordCount, builder, nil
 }
 
 func (v *MerkleVerifier) calculateMerkleRootFromBoltDB(tableName string) (string, int, error) {
+	// Try to use checkpoint optimization for O(k log n) complexity
+	checkpoint, err := v.storage.GetLatestMerkleCheckpoint(tableName)
+	if err == nil && checkpoint != nil && len(checkpoint.LeafMap) > 0 {
+		// Use checkpoint-based reconstruction (O(k log n) where k = new entries)
+		return v.calculateMerkleRootFromCheckpoint(tableName, checkpoint)
+	}
+
+	// Fallback to full scan if no checkpoint exists (O(n))
 	entries, err := v.storage.GetAllHashEntries(tableName)
 	if err != nil {
 		return "", 0, fmt.Errorf("failed to get hash entries from BoltDB: %w", err)
@@ -444,7 +398,49 @@ func (v *MerkleVerifier) calculateMerkleRootFromBoltDB(tableName string) (string
 	return builder.GetRoot(), len(entries), nil
 }
 
-func (v *MerkleVerifier) createCheckpoint(ctx context.Context, tableName, merkleRoot string, recordCount int) error {
+// calculateMerkleRootFromCheckpoint uses checkpoint data to optimize tree construction
+// Only processes entries added after the checkpoint
+func (v *MerkleVerifier) calculateMerkleRootFromCheckpoint(tableName string, checkpoint *storage.MerkleCheckpoint) (string, int, error) {
+	// Start with checkpoint's leaf map
+	leafMap := make(map[string]string, len(checkpoint.LeafMap))
+	for k, v := range checkpoint.LeafMap {
+		leafMap[k] = v
+	}
+
+	// Get entries added after checkpoint
+	entries, err := v.storage.GetAllHashEntries(tableName)
+	if err != nil {
+		return "", 0, fmt.Errorf("failed to get hash entries: %w", err)
+	}
+
+	// Update leaf map with new entries (those with SequenceNum > checkpoint.SequenceNum)
+	newEntryCount := 0
+	for _, entry := range entries {
+		if entry.SequenceNum > checkpoint.SequenceNum {
+			leafMap[entry.RecordID] = entry.DataHash
+			newEntryCount++
+		}
+	}
+
+	// Build Merkle tree from updated leaf map
+	builder := hash.NewMerkleTreeBuilder()
+	for recordID, dataHash := range leafMap {
+		builder.AddLeafHash(recordID, dataHash)
+	}
+
+	if err := builder.Build(); err != nil {
+		return "", 0, fmt.Errorf("failed to build Merkle Tree: %w", err)
+	}
+
+	return builder.GetRoot(), len(leafMap), nil
+}
+
+func (v *MerkleVerifier) createCheckpoint(tableName, merkleRoot string, recordCount int) error {
+	return v.createCheckpointWithTree(tableName, merkleRoot, recordCount, nil)
+}
+
+// createCheckpointWithTree creates a checkpoint with optional Merkle tree data
+func (v *MerkleVerifier) createCheckpointWithTree(tableName, merkleRoot string, recordCount int, tree *hash.MerkleTreeBuilder) error {
 	latestEntry, err := v.storage.GetLatestHashEntry(tableName)
 	var seqNum uint64 = 0
 	if err == nil {
@@ -452,11 +448,18 @@ func (v *MerkleVerifier) createCheckpoint(ctx context.Context, tableName, merkle
 	}
 
 	checkpoint := &storage.MerkleCheckpoint{
-		TableName:   tableName,
-		SequenceNum: seqNum,
-		MerkleRoot:  merkleRoot,
-		Timestamp:   time.Now(),
-		RecordCount: recordCount,
+		TableName:     tableName,
+		SequenceNum:   seqNum,
+		MerkleRoot:    merkleRoot,
+		Timestamp:     time.Now(),
+		RecordCount:   recordCount,
+		HashAlgorithm: hash.GetHasher().Name(),
+	}
+
+	// Store tree data if provided
+	if tree != nil {
+		checkpoint.LeafMap = tree.GetLeafMap()
+		checkpoint.InternalNodes = tree.GetInternalNodes()
 	}
 
 	if err := v.storage.SaveMerkleCheckpoint(checkpoint); err != nil {
@@ -464,11 +467,11 @@ func (v *MerkleVerifier) createCheckpoint(ctx context.Context, tableName, merkle
 	}
 
 	if len(merkleRoot) >= 16 {
-		fmt.Printf("📍 Created Merkle checkpoint for %s (root: %s..., records: %d)\n",
-			tableName, merkleRoot[:16], recordCount)
+		fmt.Printf("📍 Created Merkle checkpoint for %s (root: %s..., records: %d, algorithm: %s)\n",
+			tableName, merkleRoot[:16], recordCount, checkpoint.HashAlgorithm)
 	} else {
-		fmt.Printf("📍 Created Merkle checkpoint for %s (root: %s, records: %d)\n",
-			tableName, merkleRoot, recordCount)
+		fmt.Printf("📍 Created Merkle checkpoint for %s (root: %s, records: %d, algorithm: %s)\n",
+			tableName, merkleRoot, recordCount, checkpoint.HashAlgorithm)
 	}
 	return nil
 }
@@ -491,33 +494,4 @@ func extractIDFromRecordID(recordID string) string {
 		}
 	}
 	return recordID
-}
-
-func (v *MerkleVerifier) getRecordFromDB(ctx context.Context, conn *pgx.Conn, tableName string, recordID string) (map[string]interface{}, error) {
-	id := extractIDFromRecordID(recordID)
-
-	query := fmt.Sprintf("SELECT * FROM %s WHERE id = $1", quoteIdentifier(tableName))
-
-	rows, err := conn.Query(ctx, query, id)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	if !rows.Next() {
-		return nil, fmt.Errorf("record not found")
-	}
-
-	fieldDescs := rows.FieldDescriptions()
-	values, err := rows.Values()
-	if err != nil {
-		return nil, err
-	}
-
-	result := make(map[string]interface{})
-	for i, fd := range fieldDescs {
-		result[string(fd.Name)] = values[i]
-	}
-
-	return result, nil
 }

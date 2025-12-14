@@ -59,8 +59,8 @@ func TestFSMApplyHashChain(t *testing.T) {
 		t.Fatalf("GetHashEntry failed: %v", err)
 	}
 
-	if retrieved.Hash != "test_hash" {
-		t.Errorf("Expected hash test_hash, got %s", retrieved.Hash)
+	if retrieved.DataHash != "test_hash" {
+		t.Errorf("Expected data hash test_hash, got %s", retrieved.DataHash)
 	}
 }
 
@@ -147,8 +147,8 @@ func TestFSMSnapshotPersistAndRestore(t *testing.T) {
 		t.Fatalf("Expected 1 hash entry in snapshot, got %d", len(snapshotData.HashEntries))
 	}
 
-	if snapshotData.HashEntries[0].Hash != "snapshot_test_hash" {
-		t.Errorf("Expected hash 'snapshot_test_hash', got '%s'", snapshotData.HashEntries[0].Hash)
+	if snapshotData.HashEntries[0].DataHash != "snapshot_test_hash" {
+		t.Errorf("Expected data hash 'snapshot_test_hash', got '%s'", snapshotData.HashEntries[0].DataHash)
 	}
 
 	store.Close()
@@ -171,8 +171,8 @@ func TestFSMSnapshotPersistAndRestore(t *testing.T) {
 		t.Fatalf("Failed to get restored entry: %v", err)
 	}
 
-	if restored.Hash != "snapshot_test_hash" {
-		t.Errorf("Expected restored hash 'snapshot_test_hash', got '%s'", restored.Hash)
+	if restored.DataHash != "snapshot_test_hash" {
+		t.Errorf("Expected restored data hash 'snapshot_test_hash', got '%s'", restored.DataHash)
 	}
 
 	if restored.DataHash != "data_hash_value" {

@@ -13,6 +13,7 @@ import (
 	"github.com/witnz/witnz/internal/cdc"
 	"github.com/witnz/witnz/internal/config"
 	"github.com/witnz/witnz/internal/consensus"
+	"github.com/witnz/witnz/internal/hash"
 	"github.com/witnz/witnz/internal/storage"
 	"github.com/witnz/witnz/internal/verify"
 )
@@ -55,6 +56,11 @@ var initCmd = &cobra.Command{
 			return fmt.Errorf("failed to load config: %w", err)
 		}
 
+		// Initialize hash algorithm
+		if err := hash.Initialize(cfg.Hash.Algorithm); err != nil {
+			return fmt.Errorf("failed to initialize hash algorithm: %w", err)
+		}
+
 		dbPath := filepath.Join(cfg.Node.DataDir, "witnz.db")
 		if err := os.MkdirAll(cfg.Node.DataDir, 0755); err != nil {
 			return fmt.Errorf("failed to create data directory: %w", err)
@@ -83,7 +89,13 @@ var startCmd = &cobra.Command{
 			return fmt.Errorf("failed to load config: %w", err)
 		}
 
+		// Initialize hash algorithm
+		if err := hash.Initialize(cfg.Hash.Algorithm); err != nil {
+			return fmt.Errorf("failed to initialize hash algorithm: %w", err)
+		}
+
 		fmt.Printf("Starting witnz node: %s\n", cfg.Node.ID)
+		fmt.Printf("Hash algorithm: %s\n", cfg.Hash.Algorithm)
 		fmt.Printf("Connecting to PostgreSQL: %s:%d/%s\n",
 			cfg.Database.Host, cfg.Database.Port, cfg.Database.Database)
 
@@ -215,6 +227,11 @@ Use 'docker-compose logs' or check application logs to see Raft leader election 
 			return fmt.Errorf("failed to load config: %w", err)
 		}
 
+		// Initialize hash algorithm
+		if err := hash.Initialize(cfg.Hash.Algorithm); err != nil {
+			return fmt.Errorf("failed to initialize hash algorithm: %w", err)
+		}
+
 		dbPath := filepath.Join(cfg.Node.DataDir, "witnz.db")
 		store, err := storage.New(dbPath)
 		if err != nil {
@@ -244,7 +261,7 @@ Use 'docker-compose logs' or check application logs to see Raft leader election 
 			latest, err := store.GetLatestHashEntry(tableConfig.Name)
 			if err == nil {
 				fmt.Printf("    Latest sequence: %d\n", latest.SequenceNum)
-				fmt.Printf("    Latest hash: %s...\n", latest.Hash[:16])
+				fmt.Printf("    Latest data hash: %s...\n", latest.DataHash[:16])
 				fmt.Printf("    Timestamp: %s\n", latest.Timestamp.Format(time.RFC3339))
 			} else {
 				fmt.Printf("    No entries yet\n")
@@ -280,6 +297,11 @@ var verifyCmd = &cobra.Command{
 		cfg, err := config.Load(cfgFile)
 		if err != nil {
 			return fmt.Errorf("failed to load config: %w", err)
+		}
+
+		// Initialize hash algorithm
+		if err := hash.Initialize(cfg.Hash.Algorithm); err != nil {
+			return fmt.Errorf("failed to initialize hash algorithm: %w", err)
 		}
 
 		dbPath := filepath.Join(cfg.Node.DataDir, "witnz.db")
