@@ -156,8 +156,7 @@ func TestThreeNodeCluster(t *testing.T) {
 		TableName: "test_table",
 		Data: map[string]interface{}{
 			"sequence_num":   float64(1),
-			"hash":           "test_hash_123",
-			"previous_hash":  "genesis",
+			"data_hash":      "test_hash_123",
 			"operation_type": "INSERT",
 			"record_id":      "1",
 		},

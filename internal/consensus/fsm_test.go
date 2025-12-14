@@ -32,8 +32,7 @@ func TestFSMApplyHashChain(t *testing.T) {
 		TableName: "test_table",
 		Data: map[string]interface{}{
 			"sequence_num":   float64(1),
-			"hash":           "test_hash",
-			"previous_hash":  "genesis",
+			"data_hash":      "test_hash",
 			"operation_type": "INSERT",
 			"record_id":      "1",
 		},
@@ -110,9 +109,7 @@ func TestFSMSnapshotPersistAndRestore(t *testing.T) {
 		TableName: "snapshot_test_table",
 		Data: map[string]interface{}{
 			"sequence_num":   float64(1),
-			"hash":           "snapshot_test_hash",
-			"previous_hash":  "genesis",
-			"data_hash":      "data_hash_value",
+			"data_hash":      "snapshot_test_hash",
 			"operation_type": "INSERT",
 			"record_id":      "100",
 		},
@@ -173,10 +170,6 @@ func TestFSMSnapshotPersistAndRestore(t *testing.T) {
 
 	if restored.DataHash != "snapshot_test_hash" {
 		t.Errorf("Expected restored data hash 'snapshot_test_hash', got '%s'", restored.DataHash)
-	}
-
-	if restored.DataHash != "data_hash_value" {
-		t.Errorf("Expected restored data_hash 'data_hash_value', got '%s'", restored.DataHash)
 	}
 }
 
