@@ -21,6 +21,7 @@ TESTS=(
     "test-verify:Hash Chain Verification Test"
     "test-election-timeout:Raft Election Timeout Test"
     "test-leadership-transfer:Raft Leadership Transfer Test"
+    "test-node-restart:Node Restart Test"
 )
 
 PASSED=0

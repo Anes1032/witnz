@@ -34,6 +34,8 @@ func (f *FSM) Apply(log *raft.Log) interface{} {
 	switch entry.Type {
 	case LogEntryHashChain:
 		return f.applyHashChain(&entry)
+	case LogEntryCheckpoint:
+		return f.applyCheckpoint(&entry)
 	default:
 		return fmt.Errorf("unknown log entry type: %s", entry.Type)
 	}
@@ -63,6 +65,50 @@ func (f *FSM) applyHashChain(entry *LogEntry) interface{} {
 	if err := f.storage.SaveHashEntry(hashEntry); err != nil {
 		return err
 	}
+
+	return nil
+}
+
+func (f *FSM) applyCheckpoint(entry *LogEntry) interface{} {
+	checkpoint := &storage.MerkleCheckpoint{
+		TableName:     entry.TableName,
+		SequenceNum:   uint64(entry.Data["sequence_num"].(float64)),
+		MerkleRoot:    entry.Data["merkle_root"].(string),
+		Timestamp:     entry.Timestamp,
+		RecordCount:   int(entry.Data["record_count"].(float64)),
+		HashAlgorithm: entry.Data["hash_algorithm"].(string),
+	}
+
+	// Decode leaf_map and internal_nodes if present
+	if leafMapData, ok := entry.Data["leaf_map"].(map[string]interface{}); ok {
+		checkpoint.LeafMap = make(map[string]string)
+		for k, v := range leafMapData {
+			if strVal, ok := v.(string); ok {
+				checkpoint.LeafMap[k] = strVal
+			}
+		}
+	}
+
+	if internalNodesData, ok := entry.Data["internal_nodes"].(map[string]interface{}); ok {
+		checkpoint.InternalNodes = make(map[string]string)
+		for k, v := range internalNodesData {
+			if strVal, ok := v.(string); ok {
+				checkpoint.InternalNodes[k] = strVal
+			}
+		}
+	}
+
+	if err := f.storage.SaveMerkleCheckpoint(checkpoint); err != nil {
+		slog.Error("Failed to save checkpoint via Raft",
+			"table", entry.TableName,
+			"error", err)
+		return err
+	}
+
+	slog.Info("Applied checkpoint from Raft",
+		"table", entry.TableName,
+		"sequence_num", checkpoint.SequenceNum,
+		"record_count", checkpoint.RecordCount)
 
 	return nil
 }

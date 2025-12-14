@@ -147,8 +147,15 @@ var startCmd = &cobra.Command{
 			}
 			defer raftNode.Stop()
 
-			handler = verify.NewRaftHashChainHandler(baseHandler, raftNode)
 			fmt.Printf("Raft node started, leader: %s\n", raftNode.Leader())
+
+			// Synchronize hash chain from leader if this node is a follower
+			// This ensures restarted nodes receive hash entries created while they were offline
+			if err := raftNode.SyncHashChainFromLeader(ctx); err != nil {
+				return fmt.Errorf("failed to sync hash chain from leader: %w", err)
+			}
+
+			handler = verify.NewRaftHashChainHandler(baseHandler, raftNode)
 		} else {
 			fmt.Println("Running in single-node mode (no Raft)")
 			handler = baseHandler
@@ -181,6 +188,11 @@ var startCmd = &cobra.Command{
 			cfg.Database.Host, cfg.Database.Port, cfg.Database.Database,
 			cfg.Database.User, cfg.Database.Password)
 		merkleVerifier := verify.NewMerkleVerifier(store, dbConnStr)
+
+		// Set RaftNode for checkpoint replication if in cluster mode
+		if raftNode != nil {
+			merkleVerifier.SetRaftNode(raftNode)
+		}
 
 		for _, tableConfig := range cfg.ProtectedTables {
 			if err := merkleVerifier.AddTable(&verify.TableConfig{

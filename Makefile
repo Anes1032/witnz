@@ -1,4 +1,4 @@
-.PHONY: build test clean release install docker-build docker-push test-append-only test-verify test-election-timeout test-leadership-transfer test-all
+.PHONY: build test clean release install docker-build docker-push test-append-only test-verify test-election-timeout test-leadership-transfer test-node-restart test-all
 
 VERSION ?= 0.2.0
 DOCKER_IMAGE ?= witnz/witnz
@@ -24,6 +24,9 @@ test-election-timeout:
 
 test-leadership-transfer:
 	./scripts/test-leadership-transfer.sh
+
+test-node-restart:
+	./scripts/test-node-restart.sh
 
 test-all:
 	./scripts/test-all.sh

@@ -7,7 +7,8 @@ import (
 type LogEntryType string
 
 const (
-	LogEntryHashChain LogEntryType = "hash_chain"
+	LogEntryHashChain  LogEntryType = "hash_chain"
+	LogEntryCheckpoint LogEntryType = "checkpoint"
 )
 
 type LogEntry struct {

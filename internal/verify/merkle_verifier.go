@@ -18,9 +18,16 @@ type MerkleVerifier struct {
 	storage   *storage.Storage
 	dbConnStr string
 	tables    []*TableConfig
+	raftNode  RaftNode
 	mu        sync.RWMutex
 	stopCh    chan struct{}
 	wg        sync.WaitGroup
+}
+
+// RaftNode interface for checkpoint replication
+type RaftNode interface {
+	IsLeader() bool
+	ApplyCheckpoint(checkpoint *storage.MerkleCheckpoint) error
 }
 
 func NewMerkleVerifier(store *storage.Storage, dbConnStr string) *MerkleVerifier {
@@ -30,6 +37,13 @@ func NewMerkleVerifier(store *storage.Storage, dbConnStr string) *MerkleVerifier
 		tables:    make([]*TableConfig, 0),
 		stopCh:    make(chan struct{}),
 	}
+}
+
+// SetRaftNode sets the Raft node for checkpoint replication
+func (v *MerkleVerifier) SetRaftNode(node RaftNode) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	v.raftNode = node
 }
 
 func (v *MerkleVerifier) AddTable(config *TableConfig) error {
@@ -462,17 +476,39 @@ func (v *MerkleVerifier) createCheckpointWithTree(tableName, merkleRoot string, 
 		checkpoint.InternalNodes = tree.GetInternalNodes()
 	}
 
-	if err := v.storage.SaveMerkleCheckpoint(checkpoint); err != nil {
-		return fmt.Errorf("failed to save checkpoint: %w", err)
+	// If this node is the Raft leader, replicate checkpoint to all followers
+	v.mu.RLock()
+	raftNode := v.raftNode
+	v.mu.RUnlock()
+
+	if raftNode != nil && raftNode.IsLeader() {
+		// Leader: replicate via Raft consensus
+		if err := raftNode.ApplyCheckpoint(checkpoint); err != nil {
+			return fmt.Errorf("failed to replicate checkpoint via Raft: %w", err)
+		}
+
+		if len(merkleRoot) >= 16 {
+			fmt.Printf("📍 Created and replicated Merkle checkpoint for %s (root: %s..., records: %d, algorithm: %s)\n",
+				tableName, merkleRoot[:16], recordCount, checkpoint.HashAlgorithm)
+		} else {
+			fmt.Printf("📍 Created and replicated Merkle checkpoint for %s (root: %s, records: %d, algorithm: %s)\n",
+				tableName, merkleRoot, recordCount, checkpoint.HashAlgorithm)
+		}
+	} else {
+		// Follower or non-Raft mode: save locally only
+		if err := v.storage.SaveMerkleCheckpoint(checkpoint); err != nil {
+			return fmt.Errorf("failed to save checkpoint: %w", err)
+		}
+
+		if len(merkleRoot) >= 16 {
+			fmt.Printf("📍 Created Merkle checkpoint for %s (root: %s..., records: %d, algorithm: %s)\n",
+				tableName, merkleRoot[:16], recordCount, checkpoint.HashAlgorithm)
+		} else {
+			fmt.Printf("📍 Created Merkle checkpoint for %s (root: %s, records: %d, algorithm: %s)\n",
+				tableName, merkleRoot, recordCount, checkpoint.HashAlgorithm)
+		}
 	}
 
-	if len(merkleRoot) >= 16 {
-		fmt.Printf("📍 Created Merkle checkpoint for %s (root: %s..., records: %d, algorithm: %s)\n",
-			tableName, merkleRoot[:16], recordCount, checkpoint.HashAlgorithm)
-	} else {
-		fmt.Printf("📍 Created Merkle checkpoint for %s (root: %s, records: %d, algorithm: %s)\n",
-			tableName, merkleRoot, recordCount, checkpoint.HashAlgorithm)
-	}
 	return nil
 }
 
