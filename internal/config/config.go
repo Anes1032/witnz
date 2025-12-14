@@ -28,7 +28,6 @@ type DatabaseConfig struct {
 type NodeConfig struct {
 	ID        string            `mapstructure:"id"`
 	BindAddr  string            `mapstructure:"bind_addr"`
-	GRPCAddr  string            `mapstructure:"grpc_addr"`
 	DataDir   string            `mapstructure:"data_dir"`
 	Peers     []string          `mapstructure:"peers"`
 	Bootstrap bool              `mapstructure:"bootstrap"`
@@ -52,7 +51,6 @@ type ProtectedTableConfig struct {
 type AlertsConfig struct {
 	Enabled      bool   `mapstructure:"enabled"`
 	SlackWebhook string `mapstructure:"slack_webhook"`
-	PagerDutyKey string `mapstructure:"pagerduty_key"`
 }
 
 func Load(configPath string) (*Config, error) {

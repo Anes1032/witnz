@@ -1,4 +1,4 @@
-.PHONY: build test clean release install docker-build docker-push test-append-only test-verify test-election-timeout test-leadership-transfer test-node-restart test-all
+.PHONY: build test clean release install docker-build docker-push test-append-only test-verify test-election-timeout test-leadership-transfer test-node-restart test-integration
 
 VERSION ?= 0.2.0
 DOCKER_IMAGE ?= witnz/witnz
@@ -28,8 +28,8 @@ test-leadership-transfer:
 test-node-restart:
 	./scripts/test-node-restart.sh
 
-test-all:
-	./scripts/test-all.sh
+test-integration:
+	./scripts/test-integration.sh
 
 clean:
 	rm -f witnz

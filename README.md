@@ -110,34 +110,38 @@ witnz version
 
 ### Configuration
 
-Create `witnz.yaml`:
+Create `config/witnz.yaml` (see [detailed configuration guide](config/README.md)):
 
 ```yaml
 database:
-  host: your-db-host.com
+  host: postgres
   port: 5432
-  database: production
-  user: witnz_user
-  password: ${WITNZ_DB_PASSWORD}
+  database: witnzdb
+  user: witnz
+  password: witnz_password
+
+hash:
+  algorithm: sha256
 
 node:
   id: node1
-  bind_addr: node1:7000
-  grpc_addr: 0.0.0.0:8000
-  data_dir: /var/lib/witnz
+  bind_addr: 0.0.0.0:7000
+  data_dir: /data/witnz
   bootstrap: true
   peer_addrs:
     node2: node2:7000
     node3: node3:7000
 
 protected_tables:
-  - name: audit_logs
-    verify_interval: 30m
+  - name: audit_log
+    verify_interval: 30s
 
 alerts:
   enabled: true
   slack_webhook: ${SLACK_WEBHOOK_URL}
 ```
+
+For complete configuration options including cluster setup, see [config/README.md](config/README.md).
 
 ### PostgreSQL Setup
 
@@ -156,35 +160,9 @@ GRANT SELECT ON ALL TABLES IN SCHEMA public TO witnz;
 ### Start Witnz
 
 ```bash
-witnz init --config witnz.yaml
-witnz start --config witnz.yaml
-witnz status --config witnz.yaml
-```
-
-## Multi-Node Setup
-
-Deploy at least **3 nodes** for fault tolerance:
-
-**Node 1 (Bootstrap):**
-```yaml
-node:
-  id: node1
-  bootstrap: true
-  bind_addr: node1:7000
-  peer_addrs:
-    node2: node2:7000
-    node3: node3:7000
-```
-
-**Node 2 & 3 (Followers):**
-```yaml
-node:
-  id: node2
-  bootstrap: false
-  bind_addr: node2:7000
-  peer_addrs:
-    node1: node1:7000
-    node3: node3:7000
+witnz init
+witnz start
+witnz status
 ```
 
 ## Use Cases
@@ -206,7 +184,7 @@ node:
 | CDC | PostgreSQL Logical Replication | Real-time change detection |
 | Consensus | Raft (hashicorp/raft) | Distributed consensus |
 | Storage | BoltDB (bbolt) | Embedded key-value store |
-| Hash | SHA256 | Cryptographic integrity |
+| Hash | Multi options (eg. SHA256) | Cryptographic integrity |
 | Alerts | Slack webhooks | Instant notifications |
 
 ### What Witnz Detects
@@ -233,25 +211,29 @@ docker-compose up -d
 
 ```bash
 make build
+```
+
+### Unit Tests
+
+```bash
 make test
 ```
 
 ### Integration Tests
 
 ```bash
-make test-append-only    # Real-time detection test
-make test-verify         # Merkle Root verification test
+make test-integration
 ```
 
 ## Current Status
 
 ### Implemented Features
-- Append-only mode with real-time UPDATE/DELETE detection
+- Real-time UPDATE/DELETE detection
 - Merkle Root verification with specific tampered record identification
-- 3-node Raft cluster with automatic failover
+- Raft cluster with automatic failover
 - PostgreSQL Logical Replication integration
 - Slack webhook alerts
-- Multi-platform support (Linux, macOS, Windows)
+- Multi-platform support (Linux, macOS)
 
 ## Security Considerations
 

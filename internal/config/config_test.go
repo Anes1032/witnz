@@ -17,7 +17,6 @@ database:
 node:
   id: node1
   bind_addr: 0.0.0.0:7000
-  grpc_addr: 0.0.0.0:8000
   data_dir: /tmp/data
   peers:
     - node2:7000

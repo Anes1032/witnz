@@ -30,12 +30,35 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "witnz.yaml", "config file path")
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file path (default: config/witnz.yaml or witnz.yaml)")
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(initCmd)
 	rootCmd.AddCommand(startCmd)
 	rootCmd.AddCommand(statusCmd)
 	rootCmd.AddCommand(verifyCmd)
+}
+
+func findConfigFile() (string, error) {
+	if cfgFile != "" {
+		if _, err := os.Stat(cfgFile); err != nil {
+			return "", fmt.Errorf("config file not found: %s", cfgFile)
+		}
+		return cfgFile, nil
+	}
+
+	defaultPaths := []string{
+		"config/witnz.yaml",
+		"witnz.yaml",
+		"/etc/witnz/witnz.yaml",
+	}
+
+	for _, path := range defaultPaths {
+		if _, err := os.Stat(path); err == nil {
+			return path, nil
+		}
+	}
+
+	return "", fmt.Errorf("config file not found in default locations: %v", defaultPaths)
 }
 
 var versionCmd = &cobra.Command{
@@ -51,12 +74,17 @@ var initCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Initialize witnz node",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := config.Load(cfgFile)
+		configPath, err := findConfigFile()
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Using config file: %s\n", configPath)
+
+		cfg, err := config.Load(configPath)
 		if err != nil {
 			return fmt.Errorf("failed to load config: %w", err)
 		}
 
-		// Initialize hash algorithm
 		if err := hash.Initialize(cfg.Hash.Algorithm); err != nil {
 			return fmt.Errorf("failed to initialize hash algorithm: %w", err)
 		}
@@ -84,12 +112,17 @@ var startCmd = &cobra.Command{
 	Use:   "start",
 	Short: "Start witnz node",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := config.Load(cfgFile)
+		configPath, err := findConfigFile()
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Using config file: %s\n", configPath)
+
+		cfg, err := config.Load(configPath)
 		if err != nil {
 			return fmt.Errorf("failed to load config: %w", err)
 		}
 
-		// Initialize hash algorithm
 		if err := hash.Initialize(cfg.Hash.Algorithm); err != nil {
 			return fmt.Errorf("failed to initialize hash algorithm: %w", err)
 		}
@@ -99,7 +132,6 @@ var startCmd = &cobra.Command{
 		fmt.Printf("Connecting to PostgreSQL: %s:%d/%s\n",
 			cfg.Database.Host, cfg.Database.Port, cfg.Database.Database)
 
-		// Create a single context for all components
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
@@ -189,7 +221,6 @@ var startCmd = &cobra.Command{
 			cfg.Database.User, cfg.Database.Password)
 		merkleVerifier := verify.NewMerkleVerifier(store, dbConnStr)
 
-		// Set RaftNode for checkpoint replication if in cluster mode
 		if raftNode != nil {
 			merkleVerifier.SetRaftNode(raftNode)
 		}
@@ -234,12 +265,16 @@ var statusCmd = &cobra.Command{
 Note: Raft cluster state cannot be shown via this command as it would conflict with running nodes.
 Use 'docker-compose logs' or check application logs to see Raft leader election status.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := config.Load(cfgFile)
+		configPath, err := findConfigFile()
+		if err != nil {
+			return err
+		}
+
+		cfg, err := config.Load(configPath)
 		if err != nil {
 			return fmt.Errorf("failed to load config: %w", err)
 		}
 
-		// Initialize hash algorithm
 		if err := hash.Initialize(cfg.Hash.Algorithm); err != nil {
 			return fmt.Errorf("failed to initialize hash algorithm: %w", err)
 		}
@@ -306,12 +341,16 @@ var verifyCmd = &cobra.Command{
 	Short: "Verify Merkle Root integrity",
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := config.Load(cfgFile)
+		configPath, err := findConfigFile()
+		if err != nil {
+			return err
+		}
+
+		cfg, err := config.Load(configPath)
 		if err != nil {
 			return fmt.Errorf("failed to load config: %w", err)
 		}
 
-		// Initialize hash algorithm
 		if err := hash.Initialize(cfg.Hash.Algorithm); err != nil {
 			return fmt.Errorf("failed to initialize hash algorithm: %w", err)
 		}

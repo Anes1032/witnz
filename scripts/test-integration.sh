@@ -22,6 +22,7 @@ TESTS=(
     "test-election-timeout:Raft Election Timeout Test"
     "test-leadership-transfer:Raft Leadership Transfer Test"
     "test-node-restart:Node Restart Test"
+    "test-checkpoint-replication:Checkpoint Replication Test"
 )
 
 PASSED=0

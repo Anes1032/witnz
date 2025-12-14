@@ -11,7 +11,6 @@ hash:
 node:
   id: node
   bind_addr: node:7000
-  grpc_addr: 0.0.0.0:8000
   data_dir: /data
   bootstrap: true
   peer_addrs: []

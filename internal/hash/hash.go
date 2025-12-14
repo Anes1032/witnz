@@ -19,13 +19,11 @@ var (
 	hasherMu     sync.RWMutex
 )
 
-// Hasher interface for different hash algorithms
 type Hasher interface {
 	Hash(data []byte) string
 	Name() string
 }
 
-// Initialize sets the global hash algorithm
 func Initialize(algorithm string) error {
 	var h Hasher
 	switch algorithm {
@@ -49,18 +47,15 @@ func Initialize(algorithm string) error {
 	return nil
 }
 
-// GetHasher returns the current global hasher
 func GetHasher() Hasher {
 	hasherMu.RLock()
 	defer hasherMu.RUnlock()
 	if globalHasher == nil {
-		// Default to SHA256 if not initialized
 		return &sha256Hasher{}
 	}
 	return globalHasher
 }
 
-// xxHash64 implementation
 type xxHash64Hasher struct{}
 
 func (h *xxHash64Hasher) Hash(data []byte) string {
@@ -74,14 +69,12 @@ func (h *xxHash64Hasher) Name() string {
 	return "xxhash64"
 }
 
-// xxHash128 implementation
 type xxHash128Hasher struct{}
 
 func (h *xxHash128Hasher) Hash(data []byte) string {
 	digest := xxhash.New()
 	digest.Write(data)
 	hash := digest.Sum(nil)
-	// xxhash returns 8 bytes, we'll compute it twice with different seeds for 16 bytes
 	digest2 := xxhash.New()
 	digest2.Write(append([]byte{0x01}, data...))
 	hash2 := digest2.Sum(nil)
@@ -92,7 +85,6 @@ func (h *xxHash128Hasher) Name() string {
 	return "xxhash128"
 }
 
-// SHA256 implementation
 type sha256Hasher struct{}
 
 func (h *sha256Hasher) Hash(data []byte) string {
@@ -104,7 +96,6 @@ func (h *sha256Hasher) Name() string {
 	return "sha256"
 }
 
-// BLAKE2b-256 implementation
 type blake2b256Hasher struct{}
 
 func (h *blake2b256Hasher) Hash(data []byte) string {
@@ -116,7 +107,6 @@ func (h *blake2b256Hasher) Name() string {
 	return "blake2b_256"
 }
 
-// BLAKE3 implementation
 type blake3Hasher struct{}
 
 func (h *blake3Hasher) Hash(data []byte) string {
