@@ -52,29 +52,75 @@ Witnz is a sidecar monitoring tool that detects unauthorized modifications to Po
 
 ```mermaid
 graph TB
-    subgraph "Application Servers"
-        App1[App Server 1]
-        App2[App Server 2]
-        App3[App Server 3]
+    subgraph PostgreSQL
+        PG[(PostgreSQL<br/>Database)]
+        WAL[WAL<br/>Logical Replication]
     end
 
-    subgraph "Raft Nodes（Sidecar）"
-        Node1[Raft Node 1<br/>Leader]
-        Node2[Raft Node 2<br/>Follower]
-        Node3[Raft Node 3<br/>Follower]
+    subgraph "Witnz 3-Node Raft Cluster"
+        subgraph "Node1 (Leader)"
+            CDC1[CDC Handler]
+            HASH1[Hash Calculator]
+            RAFT1[Raft Node]
+            FSM1[FSM]
+            DB1[(BoltDB<br/>Hash Chain)]
+            VERIFY1[Merkle Verifier<br/>Leader Only]
+        end
+
+        subgraph "Node2 (Follower)"
+            CDC2[CDC Handler]
+            HASH2[Hash Calculator]
+            RAFT2[Raft Node]
+            FSM2[FSM]
+            DB2[(BoltDB<br/>Hash Chain)]
+        end
+
+        subgraph "Node3 (Follower)"
+            CDC3[CDC Handler]
+            HASH3[Hash Calculator]
+            RAFT3[Raft Node]
+            FSM3[FSM]
+            DB3[(BoltDB<br/>Hash Chain)]
+        end
     end
 
-    subgraph "Storage"
-        PG[(PostgreSQL<br/>RDS/Aurora)]
-    end
+    PG --> WAL
+    WAL --> CDC1
+    WAL --> CDC2
+    WAL --> CDC3
 
-    App1 & App2 & App3 -->|SQL| PG
+    CDC1 --> HASH1
+    CDC2 --> HASH2
+    CDC3 --> HASH3
 
-    PG -->|Logical Replication| Node1 & Node2 & Node3
+    HASH1 --> RAFT1
+    HASH2 --> RAFT2
+    HASH3 --> RAFT3
 
-    Node1 <-->|Raft Consensus| Node2
-    Node2 <-->|Raft Consensus| Node3
-    Node3 <-->|Raft Consensus| Node1
+    RAFT1 --> FSM1
+    FSM1 --> DB1
+
+    RAFT1 -.Raft Log Replication.-> RAFT2
+    RAFT1 -.Raft Log Replication.-> RAFT3
+
+    RAFT2 --> FSM2
+    RAFT2 --> DB2
+    RAFT3 --> FSM3
+    RAFT3 --> DB3
+
+    VERIFY1 -.Checkpoint Replication.-> RAFT2
+    VERIFY1 -.Checkpoint Replication.-> RAFT3
+
+    style CDC1 fill:#ff9999
+    style CDC2 fill:#ff9999
+    style CDC3 fill:#ff9999
+    style HASH1 fill:#ff9999
+    style HASH2 fill:#ff9999
+    style HASH3 fill:#ff9999
+    style VERIFY1 fill:#99ccff
+    style RAFT1 fill:#ffcc99
+    style RAFT2 fill:#cccccc
+    style RAFT3 fill:#cccccc
 ```
 
 ### Protection Layers
@@ -112,13 +158,40 @@ witnz version
 
 Create `config/witnz.yaml` (see [detailed configuration guide](config/README.md)):
 
+**For Development/Testing:**
 ```yaml
 database:
-  host: postgres
+  host: localhost
   port: 5432
-  database: witnzdb
+  database: mydb
   user: witnz
-  password: witnz_password
+  password: test_password  # OK for testing only
+
+hash:
+  algorithm: sha256
+
+node:
+  id: node1
+  bind_addr: 0.0.0.0:7000
+  data_dir: /data/witnz
+  bootstrap: true
+  peer_addrs:
+    node2: node2:7000
+    node3: node3:7000
+
+protected_tables:
+  - name: audit_log
+    verify_interval: 30s
+```
+
+**For Production (REQUIRED):**
+```yaml
+database:
+  host: ${DB_HOST}         # Environment variable
+  port: ${DB_PORT}         # Environment variable
+  database: ${DB_NAME}     # Environment variable
+  user: ${DB_USER}         # Environment variable
+  password: ${DB_PASSWORD} # Environment variable
 
 hash:
   algorithm: sha256
@@ -140,6 +213,8 @@ alerts:
   enabled: true
   slack_webhook: ${SLACK_WEBHOOK_URL}
 ```
+
+⚠️ **Security Note**: Production environments MUST use environment variables for all sensitive data (database credentials, webhook URLs). Never commit plain text credentials to version control. See [config/README.md](config/README.md) for detailed security guidance.
 
 For complete configuration options including cluster setup, see [config/README.md](config/README.md).
 

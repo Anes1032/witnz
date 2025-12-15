@@ -35,13 +35,6 @@ func (h *RaftHashChainHandler) HandleChange(event *cdc.ChangeEvent) error {
 		return h.HashChainHandler.HandleChange(event)
 	}
 
-	if !h.raftNode.IsLeader() {
-		slog.Debug("Ignoring CDC event on follower (will receive via Raft)",
-			"table", event.TableName,
-			"operation", event.Operation)
-		return nil
-	}
-
 	if _, ok := h.tableConfigs[event.TableName]; !ok {
 		return fmt.Errorf("table not configured: %s", event.TableName)
 	}
@@ -66,7 +59,16 @@ func (h *RaftHashChainHandler) HandleChange(event *cdc.ChangeEvent) error {
 		Timestamp: time.Now(),
 	}
 
+	// Only the leader can apply logs to Raft
+	// Followers will receive "not the leader" error and skip replication
 	if err := h.raftNode.ApplyLog(logEntry); err != nil {
+		if !h.raftNode.IsLeader() {
+			// Follower: hash is calculated but not replicated (will receive via Raft)
+			slog.Debug("CDC event processed on follower, waiting for Raft replication",
+				"table", event.TableName,
+				"seq", seqNum)
+			return nil
+		}
 		return fmt.Errorf("failed to replicate via raft: %w", err)
 	}
 

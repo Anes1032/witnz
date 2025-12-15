@@ -31,11 +31,11 @@ For development or testing with a single node:
 
 ```yaml
 database:
-  host: "localhost"
-  port: 5432
-  database: "mydb"
-  user: "witnz"
-  password: "witnz_password"
+  host: ${DB_HOST}           # e.g., "postgres" or "prod-db.example.com"
+  port: ${DB_PORT}           # e.g., 5432
+  database: ${DB_NAME}       # e.g., "witnzdb"
+  user: ${DB_USER}           # e.g., "witnz"
+  password: ${DB_PASSWORD}   # Use environment variable
 
 hash:
   algorithm: sha256
@@ -64,11 +64,11 @@ For production deployment with high availability:
 
 ```yaml
 database:
-  host: "postgres"
-  port: 5432
-  database: "witnzdb"
-  user: "witnz"
-  password: "witnz_password"
+  host: ${DB_HOST}           # e.g., "postgres" or "prod-db.example.com"
+  port: ${DB_PORT}           # e.g., 5432
+  database: ${DB_NAME}       # e.g., "witnzdb"
+  user: ${DB_USER}           # e.g., "witnz"
+  password: ${DB_PASSWORD}   # Use environment variable
 
 hash:
   algorithm: sha256
@@ -95,11 +95,11 @@ alerts:
 
 ```yaml
 database:
-  host: "postgres"
-  port: 5432
-  database: "witnzdb"
-  user: "witnz"
-  password: "witnz_password"
+  host: ${DB_HOST}
+  port: ${DB_PORT}
+  database: ${DB_NAME}
+  user: ${DB_USER}
+  password: ${DB_PASSWORD}
 
 hash:
   algorithm: sha256
@@ -110,8 +110,8 @@ node:
   data_dir: "/data/witnz"
   bootstrap: false
   peer_addrs:
-    node1: "node1:7000"
-    node3: "node3:7000"
+    node1: "{node1 Server IP}:7000"
+    node3: "{node3 SERVER IP}:7000"
 
 protected_tables:
   - name: "audit_log"
@@ -126,11 +126,11 @@ alerts:
 
 ```yaml
 database:
-  host: "postgres"
-  port: 5432
-  database: "witnzdb"
-  user: "witnz"
-  password: "witnz_password"
+  host: ${DB_HOST}
+  port: ${DB_PORT}
+  database: ${DB_NAME}
+  user: ${DB_USER}
+  password: ${DB_PASSWORD}
 
 hash:
   algorithm: sha256
@@ -141,8 +141,8 @@ node:
   data_dir: "/data/witnz"
   bootstrap: false
   peer_addrs:
-    node1: "node1:7000"
-    node2: "node2:7000"
+    node1: "{node1 Server IP}:7000"
+    node2: "{node2 Server IP}:7000"
 
 protected_tables:
   - name: "audit_log"
@@ -291,69 +291,6 @@ All nodes should connect to the **same PostgreSQL database** with:
 - Identical database credentials
 - Same protected table configuration
 - Logical replication enabled (configured via `witnz init`)
-
-## Environment-Specific Configuration
-
-### Development (Single Node)
-
-```yaml
-database:
-  host: "localhost"
-  port: 5432
-  database: "mydb"
-  user: "witnz"
-  password: "witnz_password"
-
-hash:
-  algorithm: xxhash64  # Fast non-cryptographic for development
-
-node:
-  id: "node1"
-  bind_addr: "0.0.0.0:7000"
-  data_dir: "/data/witnz"
-  bootstrap: false
-  peer_addrs: {}  # Empty for single node
-
-protected_tables:
-  - name: "audit_log"
-    verify_interval: "10s"  # Fast verification for testing
-
-alerts:
-  enabled: false  # Disable alerts in development
-```
-
-### Production (3-Node Cluster)
-
-```yaml
-database:
-  host: "postgres"
-  port: 5432
-  database: "witnzdb"
-  user: "witnz"
-  password: "witnz_password"
-
-hash:
-  algorithm: sha256  # Cryptographic hash for production
-
-node:
-  id: "node1"
-  bind_addr: "0.0.0.0:7000"
-  data_dir: "/data/witnz"
-  bootstrap: true  # Only on one node
-  peer_addrs:
-    node2: "node2:7000"
-    node3: "node3:7000"
-
-protected_tables:
-  - name: "audit_log"
-    verify_interval: "60m"
-  - name: "transactions"
-    verify_interval: "10s" (critical table)
-
-alerts:
-  enabled: true
-  slack_webhook: ${SLACK_WEBHOOK_URL}
-```
 
 ## Checkpoint Sharing
 
