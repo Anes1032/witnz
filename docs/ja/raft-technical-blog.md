@@ -326,56 +326,6 @@ graph TB
     style RAFT3 fill:#cccccc
 ```
 
-### 3ノードクラスタの構成
-
-Raftクラスタのセットアップは驚くほどシンプルです。各ノードの設定ファイル（YAML）を見てみましょう：
-
-```yaml
-database:
-  host: ${DB_HOST}         # 環境変数
-  port: ${DB_PORT}         # 環境変数
-  database: ${DB_NAME}     # 環境変数
-  user: ${DB_USER}         # 環境変数
-  password: ${DB_PASSWORD} # 環境変数
-
-hash:
-  algorithm: sha256
-
-node:
-  id: "node1"
-  bind_addr: "0.0.0.0:7000"
-  data_dir: "/data/witnz"
-  bootstrap: true  # 初回起動時にクラスタを作成
-  peer_addrs:
-    node2: "{node2 Server IP}:7000"
-    node3: "{node3 Server IP}:7000"
-
-protected_tables:
-  - name: users
-    verify_interval: 5m
-
-alerts:
-  enabled: true
-  slack_webhook: ${SLACK_WEBHOOK_URL}
-```
-
-**Node2, Node3の設定:**
-
-Node2とNode3も同様の設定ですが、`bootstrap: false`と`peer_addrs`の内容が異なります：
-
-```yaml
-node:
-  id: "node2"  # node3の場合は "node3"
-  bind_addr: "0.0.0.0:7000"
-  data_dir: "/data/witnz"
-  bootstrap: false  # 既存クラスタに参加
-  peer_addrs:
-    node1: "{node1 Server IP}:7000"
-    node3: "{node3 Server IP}:7000"  # node3の場合は "node2: node2:7000"
-```
-
-重要なのは`bootstrap`フラグです。**最初の1台のみ**を`true`に設定し、残りのノードは`false`で起動します。これにより、Node1がクラスタを作成し、Node2とNode3が参加する形になります。
-
 ### ハッシュチェーンのレプリケーション実装
 
 実際のコードを見ながら、Raftによるハッシュチェーン複製の仕組みを理解しましょう。
@@ -443,7 +393,7 @@ func (h *RaftHashChainHandler) HandleChange(event *cdc.ChangeEvent) error {
 
 #### Step 2: Raftノードがログを複製
 
-[internal/consensus/node.go](internal/consensus/node.go):
+[internal/consensus/node.go](https://github.com/Anes1032/witnz/tree/main/internal/consensus/node.go):
 ```go
 func (n *Node) ApplyLog(entry *LogEntry) error {
     // Leader以外は拒否
@@ -473,7 +423,7 @@ func (n *Node) ApplyLog(entry *LogEntry) error {
 
 Raft Finite State Machine (FSM) は、すべてのノードで実行される状態マシンです。Leaderが複製したログエントリを、各ノードのFSMが順番に適用していきます。
 
-[internal/consensus/fsm.go](internal/consensus/fsm.go):
+[internal/consensus/fsm.go](https://github.com/Anes1032/witnz/tree/main//internal/consensus/fsm.go):
 ```go
 type FSM struct {
     storage *storage.Storage
@@ -558,102 +508,6 @@ func (f *FSM) applyHashChain(entry *LogEntry) interface{} {
 
 この設計により、可用性を保ちながら分散改ざん検知を実現できます。
 
-## その他の実装上の工夫（概要）
-
-Raftによる分散化以外にも、Witnzにはいくつかの最適化が施されています。詳細は次回以降の記事で深掘りしますが、ここでは簡単に紹介します。
-
-### Merkle Tree最適化（O(n) → O(k log n)）
-
-定期的な整合性検証では、Merkle Treeを使って効率的に改ざんを検知します。通常、Merkle Treeの構築はO(n)ですが、Witnzでは**チェックポイント**を導入し、差分のみを計算する仕組みを実装しました。
-
-- 前回のチェックポイントからの差分（k件）のみを処理
-- 計算量：O(n) → **O(k log n)**
-- 詳細は次回記事で解説予定
-
-### BoltDB分離設計
-
-アプリケーションデータとRaftログを別々のBoltDBインスタンスに保存：
-
-```
-/data/witnz/
-├── witnz.db              # アプリケーションのハッシュチェーン
-└── raft/
-    ├── raft-log.db       # Raftのログエントリ
-    ├── raft-stable.db    # Raftのメタデータ
-    └── snapshots/        # Raftスナップショット
-```
-
-利点：独立したバックアップ・リストア、異なる圧縮戦略
-
-### ハッシュアルゴリズムの柔軟性
-
-用途に応じてハッシュアルゴリズムを選択可能：
-
-- **SHA256**: 標準的な暗号学的ハッシュ
-- **Blake3**: 高速な最新暗号学的ハッシュ
-- **xxHash64**: 非暗号学的だが超高速
-
-### 自動ノード復旧
-
-ノードが再起動した際、Raftの自動ログ追従により、停止中に追加されたハッシュエントリを自動的に受信します。手動での同期処理は不要です。
-
-## テストと信頼性
-
-Witnzでは、Raftの動作を検証するための包括的なテストスイートを用意しています。
-
-### Leader障害テスト
-
-[scripts/test-election-timeout.sh](scripts/test-election-timeout.sh)は、Leader故障時の自動フェイルオーバーをテストします：
-
-```bash
-# テスト実行
-make test-election-timeout
-
-# テストの流れ：
-# 1. 3ノードクラスタを起動
-# 2. 現在のLeaderを特定
-# 3. Leaderを強制停止
-# 4. 10秒待機（選挙タイムアウト + 選挙実行）
-# 5. 新しいLeaderが選出されたことを確認
-# 6. 残り2ノードでサービスが継続することを確認
-```
-
-実際のテスト結果例：
-```
-✓ 3-node cluster started
-✓ Current leader: node1
-✓ Stopping leader node1...
-✓ Waiting for election timeout (10 seconds)...
-✓ New leader elected: node2
-✓ Cluster continues operating with 2 nodes
-✓ Election timeout test PASSED
-```
-
-### ノード再起動テスト
-
-[scripts/test-node-restart.sh](scripts/test-node-restart.sh)は、ノードの停止・再起動時のデータ同期を検証します：
-
-```bash
-make test-node-restart
-
-# テストの流れ：
-# 1. 3ノードクラスタを起動
-# 2. Followerノード（例: node2）を停止
-# 3. 停止中にデータを追加（ハッシュチェーンに新規エントリ）
-# 4. node2を再起動
-# 5. Raftログ追従により、停止中のデータが自動同期されることを確認
-```
-
-このテストにより、**計画的メンテナンスや一時的な障害からの復旧が自動化**されていることが確認できます。
-
-### その他のテスト
-
-- **test-append-only.sh**: 改ざん（UPDATE/DELETE）の検知
-- **test-verify.sh**: Merkle Treeによる定期検証
-- **test-checkpoint-replication.sh**: チェックポイントのRaft複製
-
-これらのテストは、CI/CD環境で自動実行され、リグレッションを防いでいます。
-
 ## まとめ
 
 本記事では、PostgreSQL改ざん検知システム「Witnz」における分散合意アルゴリズムRaftの導入について解説しました。
@@ -676,8 +530,6 @@ Raftにより、単一障害点のない改ざん検知システムが実現で�
 - **自動復旧**: 人間の介入なしで障害から回復
 
 **次回の記事では、Merkle Treeについて解説しようと考えています。**
-
-Raftの導入により、Witnzは単なる改ざん検知ツールから、**本番環境で使える信頼性の高い分散監視システム**へと進化しました。PostgreSQLの重要なデータを守るために、ぜひWitnzの導入を検討してみてください。
 
 ---
 

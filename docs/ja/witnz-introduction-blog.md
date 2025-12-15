@@ -1,3 +1,5 @@
+# 15MBのバイナリ1つで、DBAすら騙せない監査システムを作った
+
 ## はじめに
 
 監査で「データが改竄されていないことを証明して」と言われたら、何を出しますか？
@@ -231,11 +233,14 @@ witnz version
 ```yaml
 # witnz.yaml
 database:
-  host: postgres
-  port: 5432
-  database: witnzdb
-  user: witnz
-  password: witnz_dev_password
+  host: ${DB_HOST}           # e.g., "postgres" or "prod-db.example.com"
+  port: ${DB_PORT}           # e.g., 5432
+  database: ${DB_NAME}       # e.g., "witnzdb"
+  user: ${DB_USER}           # e.g., "witnz"
+  password: ${DB_PASSWORD}   # Use environment variable
+
+  hash:
+  algorithm: sha256
 
 node:
   id: node1
@@ -351,6 +356,13 @@ Witnzには根本的な制限があります：Raftリーダーノードがroot�
 - 実行中のバイナリを改変、または改竄版で再起動する能力
 
 ## 他のソリューションにも同じことが当てはまる
+
+| ソリューション | サーバーRoot侵害 |
+|----------|----------------------|
+| **Witnz** | 攻撃者はLeaderノードの改竄が可能 |
+| **immudb** | 攻撃者は改竄データの保存と送信が可能 |
+| **Amazon QLDB** | AWS権限を持った攻撃者はすべての実行権限をもつ |
+| **Any software** | Root権限 = フルアクセスコントロール |
 
 **ソフトウェアのみのソリューションでは、サーバーのroot権限侵害から保護することはできません。** これはimmudbを含むすべてのデータベース整合性ツールが共有する根本的な制限です。
 唯一の理論的な保護は、ハードウェアベースの信頼の起点（TPM、AWS Nitro Enclave、Intel SGX）ですが、これはハードウェアベンダーを信頼する必要があります。
